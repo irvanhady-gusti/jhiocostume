@@ -110,6 +110,12 @@ const FileText = ({ size = 20, className = "" }) => (
 const Printer = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg>
 );
+const Camera = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><circle cx="12" cy="13" r="3" /><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" /></svg>
+);
+const Galeri = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><circle cx="8.5" cy="8.5" r="1.5" /><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" /><path d="M21 15l-5-5L5 21" /></svg>
+);
 const MessageCircle = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" /></svg>
 );
@@ -167,6 +173,30 @@ const tglPendek = (s) => {
     month: "short",
   });
 };
+
+const sisaBayar = (r) =>
+  Math.max(0, (r.total || 0) + (r.denda || 0) + (r.potongan || 0) - (r.dp || 0));
+
+/* Foto dikecilkan dulu supaya muat di penyimpanan HP */
+const kompresGambar = (berkas, maks = 1100, mutu = 0.62) =>
+  new Promise((selesai, gagal) => {
+    const pembaca = new FileReader();
+    pembaca.onload = () => {
+      const gbr = new Image();
+      gbr.onload = () => {
+        const skala = Math.min(1, maks / Math.max(gbr.width, gbr.height));
+        const kanvas = document.createElement("canvas");
+        kanvas.width = Math.round(gbr.width * skala);
+        kanvas.height = Math.round(gbr.height * skala);
+        kanvas.getContext("2d").drawImage(gbr, 0, 0, kanvas.width, kanvas.height);
+        selesai(kanvas.toDataURL("image/jpeg", mutu));
+      };
+      gbr.onerror = () => gagal(new Error("Gambar tidak terbaca"));
+      gbr.src = pembaca.result;
+    };
+    pembaca.onerror = () => gagal(new Error("Berkas tidak terbaca"));
+    pembaca.readAsDataURL(berkas);
+  });
 
 const kain = (w = ["#1e1b4b", "#c9922b", "#7f1d1d"]) => ({
   backgroundImage: `repeating-linear-gradient(135deg, ${w[0]} 0 9px, ${w[1]} 9px 15px, ${w[2]} 15px 22px)`,
@@ -309,6 +339,58 @@ const Pill = ({ tone = "netral", children }) => {
   );
 };
 
+const tombolFoto =
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-indigo-950/20 bg-white px-3.5 py-2 text-sm font-semibold text-indigo-950 hover:bg-indigo-950/5 focus-within:ring-2 focus-within:ring-amber-500";
+
+function FotoKTP({ foto, onGanti, setToast }) {
+  const [sibuk, setSibuk] = useState(false);
+
+  const ambil = async (e) => {
+    const berkas = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!berkas) return;
+    setSibuk(true);
+    try {
+      onGanti(await kompresGambar(berkas));
+      setToast("Foto KTP tersimpan di HP ini");
+    } catch (err) {
+      setToast("Foto gagal diproses, coba ambil ulang");
+    } finally {
+      setSibuk(false);
+    }
+  };
+
+  if (foto)
+    return (
+      <div className="overflow-hidden rounded-lg border border-indigo-950/15 bg-white">
+        <img src={foto} alt="Jaminan KTP penyewa" className="max-h-56 w-full object-contain bg-indigo-950/5" />
+        <div className="flex items-center justify-between gap-2 border-t border-indigo-950/10 px-3 py-2">
+          <span className="text-[11px] text-indigo-950/50">Tersimpan di HP ini saja</span>
+          <button
+            type="button"
+            onClick={() => onGanti(null)}
+            className="rounded-lg px-2 py-1 text-xs font-semibold text-red-800 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            Hapus foto
+          </button>
+        </div>
+      </div>
+    );
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <label className={tombolFoto}>
+        <Camera size={15} /> {sibuk ? "Memproses…" : "Foto KTP"}
+        <input type="file" accept="image/*" capture="environment" onChange={ambil} className="sr-only" />
+      </label>
+      <label className={tombolFoto}>
+        <Galeri size={15} /> Ambil dari galeri
+        <input type="file" accept="image/*" onChange={ambil} className="sr-only" />
+      </label>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Aplikasi                                                            */
 /* ------------------------------------------------------------------ */
@@ -333,7 +415,8 @@ function App() {
 
   useEffect(() => {
     if (!siap) return;
-    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+    try { localStorage.setItem(KEY, JSON.stringify(data)); }
+    catch (e) { setToast("Penyimpanan HP penuh. Hapus foto KTP transaksi lama lewat menu Pengembalian."); }
   }, [data, siap]);
 
   useEffect(() => {
@@ -659,7 +742,7 @@ function Katalog({ costumes, set, tersedia, setToast }) {
                     </div>
                     <div className="text-right">
                       <p className="text-sm tabular-nums">{rp(c.deposit)}</p>
-                      <p className="text-[11px] text-indigo-950/45">jaminan</p>
+                      <p className="text-[11px] text-indigo-950/45">nilai ganti</p>
                     </div>
                   </div>
                 </div>
@@ -710,7 +793,7 @@ function Katalog({ costumes, set, tersedia, setToast }) {
             <Field label="Tarif sewa per hari">
               <input type="number" min="0" className={inputCls} value={form.harga} onChange={(e) => setForm({ ...form, harga: +e.target.value })} />
             </Field>
-            <Field label="Uang jaminan">
+            <Field label="Nilai ganti bila rusak/hilang">
               <input type="number" min="0" className={inputCls} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: +e.target.value })} />
             </Field>
             <Field label="Jumlah potong">
@@ -903,16 +986,26 @@ const Nota = ({ r, nama, settings }) => (
 
     <div className="space-y-1.5 rounded-lg bg-white p-4 text-sm">
       <Baris k={`Sewa ${durasi(r.tglSewa, r.tglKembali)} hari`} v={rp(r.subtotal)} />
-      {r.diskon > 0 && <Baris k="Diskon" v={"− " + rp(r.diskon)} />}
       {r.denda > 0 && <Baris k={`Denda ${r.hariTelat} hari terlambat`} v={rp(r.denda)} />}
       {r.potongan > 0 && <Baris k="Potongan kerusakan" v={rp(r.potongan)} />}
       <div className="flex justify-between border-t border-indigo-950/10 pt-2 font-serif text-base">
         <span>Total</span>
         <span className="tabular-nums">{rp(r.total + (r.denda || 0) + (r.potongan || 0))}</span>
       </div>
-      <Baris k="Jaminan ditahan" v={rp(r.deposit)} />
+      {r.dp > 0 && <Baris k="DP dibayar" v={"− " + rp(r.dp)} />}
+      <div className="flex justify-between font-semibold text-indigo-950">
+        <span>Sisa dibayar</span>
+        <span className="tabular-nums">{rp(sisaBayar(r))}</span>
+      </div>
+      <Baris k="Jaminan" v={r.ktpFoto ? "Foto KTP diterima" : r.ktpCatatan || "—"} />
       {r.catatan && <p className="pt-2 text-xs text-indigo-950/55">Catatan: {r.catatan}</p>}
     </div>
+    {r.ktpFoto && (
+      <div className="overflow-hidden rounded-lg bg-white p-3">
+        <Label>Jaminan KTP</Label>
+        <img src={r.ktpFoto} alt="Jaminan KTP penyewa" className="max-h-52 w-full rounded object-contain bg-indigo-950/5" />
+      </div>
+    )}
   </div>
 );
 
@@ -935,8 +1028,9 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
     tglSewa: hariIni(),
     tglKembali: tambahHari(hariIni(), 1),
     items: [],
-    deposit: 0,
-    diskon: 0,
+    dp: 0,
+    ktpFoto: null,
+    ktpCatatan: "",
     catatan: "",
   };
   const [f, setF] = useState(kosong);
@@ -949,8 +1043,8 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
 
   const hari = durasi(f.tglSewa, f.tglKembali);
   const subtotal = f.items.reduce((a, i) => a + i.harga * i.qty, 0) * hari;
-  const total = Math.max(0, subtotal - (f.diskon || 0));
-  const jaminan = f.items.reduce((a, i) => a + (i.deposit || 0) * i.qty, 0);
+  const total = subtotal;
+  const sisa = Math.max(0, subtotal - (+f.dp || 0));
 
   const tambah = (c) => {
     const ada = f.items.find((i) => i.costumeId === c.id);
@@ -994,9 +1088,10 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
       tglDikembalikan: null,
       status: f.tglSewa === hariIni() ? "Disewa" : "Booking",
       subtotal,
-      diskon: +f.diskon || 0,
       total,
-      deposit: +f.deposit || jaminan,
+      dp: +f.dp || 0,
+      ktpFoto: f.ktpFoto,
+      ktpCatatan: f.ktpCatatan,
       denda: 0,
       potongan: 0,
       hariTelat: 0,
@@ -1095,12 +1190,16 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Diskon">
-            <input type="number" min="0" className={inputCls} value={f.diskon} onChange={(e) => setF({ ...f, diskon: +e.target.value })} />
+          <Field label="DP / uang muka">
+            <input type="number" min="0" className={inputCls} value={f.dp} onChange={(e) => setF({ ...f, dp: +e.target.value })} />
           </Field>
-          <Field label={`Jaminan diterima (saran ${rp(jaminan)})`}>
-            <input type="number" min="0" className={inputCls} value={f.deposit} onChange={(e) => setF({ ...f, deposit: +e.target.value })} />
+          <Field label="Keterangan jaminan">
+            <input className={inputCls} value={f.ktpCatatan} onChange={(e) => setF({ ...f, ktpCatatan: e.target.value })} placeholder="KTP a.n. Rini Astuti" />
           </Field>
+          <div className="sm:col-span-2">
+            <Label>Jaminan KTP</Label>
+            <FotoKTP foto={f.ktpFoto} onGanti={(v) => setF({ ...f, ktpFoto: v })} setToast={setToast} />
+          </div>
           <div className="sm:col-span-2">
             <Field label="Catatan">
               <input className={inputCls} value={f.catatan} onChange={(e) => setF({ ...f, catatan: e.target.value })} placeholder="Untuk pentas Hari Kartini" />
@@ -1113,14 +1212,17 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
             <span>{f.items.reduce((a, i) => a + i.qty, 0)} potong × {hari} hari</span>
             <span className="tabular-nums">{rp(subtotal)}</span>
           </div>
-          {f.diskon > 0 && (
+          <div className="mt-1 flex justify-between text-sm text-amber-50/70">
+            <span>Total sewa</span><span className="tabular-nums">{rp(total)}</span>
+          </div>
+          {f.dp > 0 && (
             <div className="mt-1 flex justify-between text-sm text-amber-50/70">
-              <span>Diskon</span><span className="tabular-nums">− {rp(f.diskon)}</span>
+              <span>DP dibayar</span><span className="tabular-nums">− {rp(f.dp)}</span>
             </div>
           )}
           <div className="mt-2 flex items-end justify-between border-t border-amber-50/20 pt-2">
-            <span className="text-sm">Total dibayar</span>
-            <span className="font-serif text-2xl tabular-nums">{rp(total)}</span>
+            <span className="text-sm">Sisa saat pengambilan</span>
+            <span className="font-serif text-2xl tabular-nums">{rp(sisa)}</span>
           </div>
         </div>
       </div>
@@ -1138,6 +1240,7 @@ function Pengembalian({ rentals, set, namaPelanggan, telat, settings, setToast, 
   const [denda, setDenda] = useState(0);
   const [potongan, setPotongan] = useState(0);
   const [kondisi, setKondisi] = useState("");
+  const [hapusFoto, setHapusFoto] = useState(true);
 
   const antre = rentals
     .filter((r) => r.status === "Booking" || r.status === "Disewa")
@@ -1151,6 +1254,7 @@ function Pengembalian({ rentals, set, namaPelanggan, telat, settings, setToast, 
     setDenda(lewat * settings.dendaPerHari * r.items.reduce((a, i) => a + i.qty, 0));
     setPotongan(0);
     setKondisi("");
+    setHapusFoto(true);
   };
 
   const hitungUlang = (tglBaru) => {
@@ -1171,6 +1275,7 @@ function Pengembalian({ rentals, set, namaPelanggan, telat, settings, setToast, 
               hariTelat: lewat,
               denda: +denda || 0,
               potongan: +potongan || 0,
+              ktpFoto: hapusFoto ? null : r.ktpFoto,
               catatan: [r.catatan, kondisi && `Kondisi kembali: ${kondisi}`].filter(Boolean).join(" · "),
             }
           : r
@@ -1180,11 +1285,13 @@ function Pengembalian({ rentals, set, namaPelanggan, telat, settings, setToast, 
     setPilih(null);
   };
 
-  const kembalikanJaminan = pilih ? Math.max(0, pilih.deposit - (+denda || 0) - (+potongan || 0)) : 0;
+  const sisaTagihan = pilih
+    ? Math.max(0, pilih.total + (+denda || 0) + (+potongan || 0) - (pilih.dp || 0))
+    : 0;
 
   return (
     <div className="space-y-5">
-      <Header judul="Pengembalian" sub="Terima kostum, hitung denda, kembalikan jaminan" />
+      <Header judul="Pengembalian" sub="Terima kostum, hitung sisa tagihan, kembalikan KTP" />
 
       {antre.length === 0 ? (
         <Kosong icon={Undo2} judul="Tidak ada kostum di luar" pesan="Semua transaksi sudah selesai. Kostum baru akan muncul di sini setelah disewa." />
@@ -1259,12 +1366,30 @@ function Pengembalian({ rentals, set, namaPelanggan, telat, settings, setToast, 
               </Field>
             </div>
 
+            {pilih.ktpFoto && (
+              <div className="overflow-hidden rounded-lg border border-indigo-950/15 bg-white">
+                <img src={pilih.ktpFoto} alt="Jaminan KTP penyewa" className="max-h-52 w-full object-contain bg-indigo-950/5" />
+                <label className="flex items-center gap-2.5 border-t border-indigo-950/10 px-3 py-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={hapusFoto}
+                    onChange={(e) => setHapusFoto(e.target.checked)}
+                    className="h-4 w-4 accent-amber-500"
+                  />
+                  KTP fisik sudah dikembalikan, hapus fotonya
+                </label>
+              </div>
+            )}
+
             <div className="rounded-lg bg-indigo-950 p-4 text-amber-50">
-              <div className="flex justify-between text-sm text-amber-50/70"><span>Jaminan ditahan</span><span className="tabular-nums">{rp(pilih.deposit)}</span></div>
-              <div className="flex justify-between text-sm text-amber-50/70"><span>Denda + potongan</span><span className="tabular-nums">− {rp((+denda || 0) + (+potongan || 0))}</span></div>
+              <div className="flex justify-between text-sm text-amber-50/70"><span>Total sewa</span><span className="tabular-nums">{rp(pilih.total)}</span></div>
+              {pilih.dp > 0 && (
+                <div className="flex justify-between text-sm text-amber-50/70"><span>DP sudah dibayar</span><span className="tabular-nums">− {rp(pilih.dp)}</span></div>
+              )}
+              <div className="flex justify-between text-sm text-amber-50/70"><span>Denda + potongan</span><span className="tabular-nums">{rp((+denda || 0) + (+potongan || 0))}</span></div>
               <div className="mt-2 flex items-end justify-between border-t border-amber-50/20 pt-2">
-                <span className="text-sm">Jaminan dikembalikan</span>
-                <span className="font-serif text-2xl tabular-nums">{rp(kembalikanJaminan)}</span>
+                <span className="text-sm">Sisa dibayar sekarang</span>
+                <span className="font-serif text-2xl tabular-nums">{rp(sisaTagihan)}</span>
               </div>
             </div>
           </div>
@@ -1307,10 +1432,161 @@ const noHP = (hp) => {
   return d;
 };
 
+const CDN_PDF = [
+  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+  "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
+  "https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js",
+];
+
+const muatJsPDF = () =>
+  new Promise((selesai, gagal) => {
+    if (window.jspdf && window.jspdf.jsPDF) return selesai(window.jspdf.jsPDF);
+    let i = 0;
+    const coba = () => {
+      if (i >= CDN_PDF.length) return gagal(new Error("Pustaka PDF tidak bisa diunduh"));
+      const s = document.createElement("script");
+      s.src = CDN_PDF[i++];
+      s.onload = () => (window.jspdf && window.jspdf.jsPDF ? selesai(window.jspdf.jsPDF) : coba());
+      s.onerror = coba;
+      document.head.appendChild(s);
+    };
+    coba();
+  });
+
+/* Menggambar invoice langsung ke PDF supaya teksnya tajam dan ukurannya kecil */
+function susunPDF(jsPDF, d) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const L = 18, R = 192, W = R - L;
+  const nila = [30, 27, 75], emas = [176, 122, 30], merah = [127, 29, 29],
+        hijau = [4, 108, 78], abu = [112, 112, 134], garis = [214, 212, 224];
+
+  const pita = [nila, emas, merah];
+  for (let i = 0; i < 21; i++) {
+    const c = pita[i % 3];
+    doc.setFillColor(c[0], c[1], c[2]);
+    doc.rect(i * 10, 0, 10, 4, "F");
+  }
+
+  let y = 22;
+  doc.setTextColor(nila[0], nila[1], nila[2]);
+  doc.setFont("helvetica", "bold").setFontSize(17);
+  doc.text(d.settings.namaToko, L, y);
+  doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(abu[0], abu[1], abu[2]);
+  doc.text(d.settings.alamat || "", L, y + 5);
+  doc.text(d.settings.telepon || "", L, y + 9.5);
+
+  doc.setFont("helvetica", "bold").setFontSize(19).setTextColor(emas[0], emas[1], emas[2]);
+  doc.text("INVOICE", R, y, { align: "right" });
+  doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(nila[0], nila[1], nila[2]);
+  doc.text(d.nomor, R, y + 5.5, { align: "right" });
+  doc.setFontSize(8).setTextColor(abu[0], abu[1], abu[2]);
+  doc.text("Dicetak " + d.cetakPada, R, y + 10.5, { align: "right" });
+
+  y += 18;
+  doc.setDrawColor(garis[0], garis[1], garis[2]).setLineWidth(0.3);
+  doc.line(L, y, R, y);
+
+  y += 7;
+  const judulKecil = (t, x, al) => {
+    doc.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(abu[0], abu[1], abu[2]);
+    doc.text(t.toUpperCase(), x, y, al ? { align: al } : undefined);
+  };
+  judulKecil("Ditagihkan kepada", L);
+  judulKecil("Masa sewa", R, "right");
+
+  doc.setTextColor(nila[0], nila[1], nila[2]);
+  doc.setFont("helvetica", "bold").setFontSize(11);
+  doc.text(d.namaPel, L, y + 6);
+  doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(abu[0], abu[1], abu[2]);
+  if (d.hp) doc.text(d.hp, L, y + 11);
+  if (d.alamat) doc.text(doc.splitTextToSize(d.alamat, 80), L, y + 15.5);
+
+  doc.setTextColor(nila[0], nila[1], nila[2]).setFontSize(9.5);
+  doc.text(d.dari, R, y + 6, { align: "right" });
+  doc.text("s/d " + d.sampai, R, y + 11, { align: "right" });
+  doc.setTextColor(abu[0], abu[1], abu[2]).setFontSize(8.5);
+  doc.text(d.hari + " hari  |  " + d.potong + " potong", R, y + 16, { align: "right" });
+
+  y += 26;
+  doc.setFillColor(243, 242, 248);
+  doc.rect(L, y - 4.5, W, 7.5, "F");
+  doc.setFont("helvetica", "bold").setFontSize(8).setTextColor(abu[0], abu[1], abu[2]);
+  doc.text("KOSTUM", L + 2, y);
+  doc.text("QTY", 126, y, { align: "center" });
+  doc.text("TARIF/HARI", 160, y, { align: "right" });
+  doc.text("JUMLAH", R - 2, y, { align: "right" });
+
+  y += 8;
+  doc.setFont("helvetica", "normal").setFontSize(9.5).setTextColor(nila[0], nila[1], nila[2]);
+  d.items.forEach((i) => {
+    if (y > 245) { doc.addPage(); y = 25; }
+    const baris = doc.splitTextToSize(i.nama, 82);
+    doc.text(baris, L + 2, y);
+    doc.text(String(i.qty), 126, y, { align: "center" });
+    doc.text(i.tarif, 160, y, { align: "right" });
+    doc.text(i.jumlah, R - 2, y, { align: "right" });
+    y += 5 * baris.length + 2.5;
+    doc.setDrawColor(238, 237, 244);
+    doc.line(L, y - 3.5, R, y - 3.5);
+  });
+
+  y += 3;
+  const x1 = 128, x2 = R;
+  const ringkas = (k, v, tebal) => {
+    doc.setFont("helvetica", tebal ? "bold" : "normal").setFontSize(tebal ? 11 : 9.5);
+    doc.setTextColor(tebal ? nila[0] : abu[0], tebal ? nila[1] : abu[1], tebal ? nila[2] : abu[2]);
+    doc.text(k, x1, y);
+    doc.setTextColor(nila[0], nila[1], nila[2]);
+    doc.text(v, x2, y, { align: "right" });
+    y += tebal ? 7 : 5.5;
+  };
+  d.ringkasan.forEach((b) => ringkas(b[0], b[1]));
+  doc.setDrawColor(garis[0], garis[1], garis[2]);
+  doc.line(x1, y - 2, R, y - 2);
+  y += 3;
+  ringkas("Total tagihan", d.total, true);
+  d.setelah.forEach((b) => ringkas(b[0], b[1]));
+  ringkas("Jaminan", d.jaminan);
+
+  y += 4;
+  doc.setFillColor(254, 249, 235);
+  doc.rect(L, y - 5, W, 12, "F");
+  doc.setFont("helvetica", "italic").setFontSize(8.5).setTextColor(abu[0], abu[1], abu[2]);
+  doc.text(doc.splitTextToSize("Terbilang: " + d.terbilang, 118), L + 3, y);
+  const cap = d.lunas ? hijau : merah;
+  doc.setDrawColor(cap[0], cap[1], cap[2]).setLineWidth(0.6);
+  doc.rect(R - 36, y - 3.5, 33, 9);
+  doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(cap[0], cap[1], cap[2]);
+  doc.text(d.lunas ? "LUNAS" : "BELUM LUNAS", R - 19.5, y + 2.2, { align: "center" });
+
+  y += 16;
+  if (d.catatan) {
+    doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(abu[0], abu[1], abu[2]);
+    doc.text(doc.splitTextToSize("Catatan: " + d.catatan, W), L, y);
+    y += 6;
+  }
+  doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(abu[0], abu[1], abu[2]);
+  doc.text(doc.splitTextToSize(d.syarat, W), L, y);
+
+  y = Math.min(Math.max(y + 18, 232), 250);
+  doc.setDrawColor(180, 178, 196).setLineWidth(0.3);
+  doc.line(L + 6, y, L + 56, y);
+  doc.line(R - 56, y, R - 6, y);
+  doc.setFontSize(8.5).setTextColor(nila[0], nila[1], nila[2]);
+  doc.text(d.namaPel, L + 31, y + 5, { align: "center" });
+  doc.text(d.settings.namaToko, R - 31, y + 5, { align: "center" });
+  doc.setFontSize(7.5).setTextColor(abu[0], abu[1], abu[2]);
+  doc.text("Penyewa", L + 31, y - 12, { align: "center" });
+  doc.text("Hormat kami", R - 31, y - 12, { align: "center" });
+
+  return doc;
+}
+
 function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast }) {
   const urut = [...rentals].sort((a, b) => (a.tglSewa < b.tglSewa ? 1 : -1));
   const [id, setId] = useState(urut[0]?.id || "");
   const [jam, setJam] = useState(new Date());
+  const [sibuk, setSibuk] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setJam(new Date()), 30000);
@@ -1339,6 +1615,7 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
 
   const hari = durasi(r.tglSewa, r.tglKembali);
   const total = r.total + (r.denda || 0) + (r.potongan || 0);
+  const sisa = sisaBayar(r);
   const pel = customers.find((c) => c.id === r.customerId);
   const nomor = "INV/" + r.kode.replace("SW-", "");
   const lunas = !!r.lunas;
@@ -1354,11 +1631,12 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
     ...r.items.map((i) => "- " + i.nama + " x" + i.qty + " = " + rp(i.harga * i.qty * hari)),
     "",
     "Subtotal: " + rp(r.subtotal),
-    r.diskon > 0 ? "Diskon: -" + rp(r.diskon) : null,
     r.denda > 0 ? "Denda keterlambatan: " + rp(r.denda) : null,
     r.potongan > 0 ? "Potongan kerusakan: " + rp(r.potongan) : null,
-    "*TOTAL: " + rp(total) + "*",
-    "Jaminan ditahan: " + rp(r.deposit),
+    "Total tagihan: " + rp(total),
+    r.dp > 0 ? "DP dibayar: -" + rp(r.dp) : null,
+    "*SISA DIBAYAR: " + rp(sisa) + "*",
+    "Jaminan: " + (r.ktpFoto ? "KTP diterima" : r.ktpCatatan || "-"),
     "Status: " + (lunas ? "LUNAS" : "BELUM LUNAS"),
     "",
     "Terima kasih sudah mempercayakan busana acara Anda kepada kami.",
@@ -1366,6 +1644,68 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
   ].filter((x) => x !== null).join("\n");
 
   const tautanWA = "https://wa.me/" + noHP(pel?.hp) + "?text=" + encodeURIComponent(pesanWA);
+
+  const kirimPDF = async () => {
+    setSibuk(true);
+    try {
+      const jsPDF = await muatJsPDF();
+      const doc = susunPDF(jsPDF, {
+        settings,
+        nomor,
+        cetakPada,
+        namaPel: namaPelanggan(r.customerId),
+        hp: pel?.hp || "",
+        alamat: pel?.alamat || "",
+        dari: tglPanjang(r.tglSewa),
+        sampai: tglPanjang(r.tglKembali),
+        hari,
+        potong: r.items.reduce((a, i) => a + i.qty, 0),
+        items: r.items.map((i) => ({ nama: i.nama, qty: i.qty, tarif: rp(i.harga), jumlah: rp(i.harga * i.qty * hari) })),
+        ringkasan: [
+          ["Subtotal " + hari + " hari", rp(r.subtotal)],
+          ...(r.denda > 0 ? [["Denda " + r.hariTelat + " hari", rp(r.denda)]] : []),
+          ...(r.potongan > 0 ? [["Potongan kerusakan", rp(r.potongan)]] : []),
+        ],
+        total: rp(total),
+        setelah: [
+          ...(r.dp > 0 ? [["DP dibayar", "- " + rp(r.dp)]] : []),
+          ["Sisa dibayar", rp(sisa)],
+        ],
+        jaminan: r.ktpFoto ? "KTP diterima" : r.ktpCatatan || "-",
+        terbilang: terbilang(sisa),
+        lunas,
+        catatan: r.catatan || "",
+        syarat:
+          "Kostum dikembalikan sesuai tanggal di atas. Keterlambatan dikenakan denda " +
+          rp(settings.dendaPerHari) +
+          " per potong per hari. Kerusakan atau kehilangan diganti sesuai nilai kostum. KTP jaminan dikembalikan setelah kostum diterima kembali dengan baik.",
+      });
+
+      const namaBerkas = "Invoice " + nomor.replace(/\//g, "-") + " " + namaPelanggan(r.customerId) + ".pdf";
+      const blob = doc.output("blob");
+      const berkas = new File([blob], namaBerkas, { type: "application/pdf" });
+
+      if (navigator.canShare && navigator.canShare({ files: [berkas] })) {
+        await navigator.share({
+          files: [berkas],
+          title: "Invoice " + nomor,
+          text: "Invoice sewa kostum dari " + settings.namaToko,
+        });
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = namaBerkas;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        setToast("PDF tersimpan, lampirkan lewat WhatsApp");
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      setToast("PDF gagal dibuat: " + (e.message || "coba lagi"));
+    } finally {
+      setSibuk(false);
+    }
+  };
 
   const toggleLunas = () => {
     set({ rentals: rentals.map((x) => (x.id === r.id ? { ...x, lunas: !x.lunas } : x)) });
@@ -1401,21 +1741,24 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
         <Btn variant="outline" onClick={toggleLunas}>
           <Check size={15} /> {lunas ? "Batalkan lunas" : "Tandai lunas"}
         </Btn>
-        <Btn variant="primary" onClick={() => window.print()}>
-          <Printer size={15} /> Simpan PDF
+        <Btn variant="gold" onClick={kirimPDF} disabled={sibuk}>
+          <FileText size={15} /> {sibuk ? "Menyiapkan PDF…" : "Kirim sebagai PDF"}
         </Btn>
         <a
           href={tautanWA}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-3.5 py-2 text-sm font-semibold text-indigo-950 hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-950/20 bg-white px-3.5 py-2 text-sm font-semibold text-indigo-950 hover:bg-indigo-950/5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
         >
-          <MessageCircle size={15} /> Kirim WhatsApp
+          <MessageCircle size={15} /> Kirim rincian teks
         </a>
+        <Btn variant="ghost" onClick={() => window.print()}>
+          <Printer size={15} /> Cetak
+        </Btn>
       </div>
 
       <p className="tanpa-cetak text-xs text-indigo-950/50">
-        Tombol Simpan PDF membuka jendela cetak. Di iPhone pilih <b>Bagikan → Simpan ke File</b> atau langsung kirim ke aplikasi lain.
+        <b>Kirim sebagai PDF</b> membuat berkas invoice lalu membuka pilihan aplikasi — pilih WhatsApp dan kontaknya. Kalau HP tidak mendukung berbagi berkas, PDF akan terunduh dan bisa dilampirkan manual.
       </p>
 
       {/* Lembar yang dicetak */}
@@ -1476,19 +1819,23 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
           <div className="mt-4 flex justify-end">
             <div className="w-full space-y-1.5 text-sm sm:w-72">
               <Baris k={"Subtotal " + hari + " hari"} v={rp(r.subtotal)} />
-              {r.diskon > 0 && <Baris k="Diskon" v={"− " + rp(r.diskon)} />}
               {r.denda > 0 && <Baris k={"Denda " + r.hariTelat + " hari"} v={rp(r.denda)} />}
               {r.potongan > 0 && <Baris k="Potongan kerusakan" v={rp(r.potongan)} />}
               <div className="flex items-center justify-between border-t border-indigo-950/15 pt-2">
-                <span className="font-serif text-base">Total tagihan</span>
-                <span className="font-serif text-xl tabular-nums">{rp(total)}</span>
+                <span className="text-sm">Total tagihan</span>
+                <span className="tabular-nums">{rp(total)}</span>
               </div>
-              <Baris k="Jaminan ditahan" v={rp(r.deposit)} />
+              {r.dp > 0 && <Baris k="DP dibayar" v={"− " + rp(r.dp)} />}
+              <div className="flex items-center justify-between border-t border-indigo-950/15 pt-2">
+                <span className="font-serif text-base">Sisa dibayar</span>
+                <span className="font-serif text-xl tabular-nums">{rp(sisa)}</span>
+              </div>
+              <Baris k="Jaminan" v={r.ktpFoto ? "KTP diterima" : r.ktpCatatan || "—"} />
             </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 px-4 py-3">
-            <p className="text-xs italic text-indigo-950/70">Terbilang: {terbilang(total)}</p>
+            <p className="text-xs italic text-indigo-950/70">Terbilang: {terbilang(sisa)}</p>
             <span
               className={`rounded border-2 px-3 py-1 font-serif text-sm tracking-widest ${
                 lunas ? "border-emerald-700 text-emerald-700" : "border-red-800 text-red-800"
@@ -1502,7 +1849,7 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
 
           <div className="mt-5 border-t border-indigo-950/10 pt-4 text-[11px] leading-relaxed text-indigo-950/55">
             Kostum dikembalikan sesuai tanggal di atas. Keterlambatan dikenakan denda {rp(settings.dendaPerHari)} per potong per hari.
-            Kerusakan atau kehilangan diperhitungkan dari uang jaminan.
+            Kerusakan atau kehilangan diganti sesuai nilai kostum. KTP jaminan dikembalikan setelah kostum diterima kembali dengan baik.
           </div>
 
           <div className="mt-6 flex justify-between gap-6 text-center text-xs">
@@ -1684,10 +2031,180 @@ function Jadwal({ rentals, namaPelanggan, statusTampil, tonePill }) {
 /* Laporan                                                             */
 /* ------------------------------------------------------------------ */
 
-function Laporan({ rentals, costumes, customers, namaPelanggan }) {
-  const selesai = rentals.filter((r) => r.status === "Selesai");
+function susunLaporanPDF(jsPDF, d) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const L = 15, R = 195;
+  const nila = [30, 27, 75], emas = [176, 122, 30], merah = [127, 29, 29],
+        abu = [112, 112, 134], garis = [216, 214, 226];
+  const pita = [nila, emas, merah];
+
+  const pitaAtas = () => {
+    for (let i = 0; i < 21; i++) {
+      const c = pita[i % 3];
+      doc.setFillColor(c[0], c[1], c[2]);
+      doc.rect(i * 10, 0, 10, 4, "F");
+    }
+  };
+
+  const kepalaTabel = (y) => {
+    doc.setFillColor(243, 242, 248);
+    doc.rect(L, y - 4.5, R - L, 7.5, "F");
+    doc.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(abu[0], abu[1], abu[2]);
+    doc.text("TANGGAL", L + 2, y);
+    doc.text("KODE", 40, y);
+    doc.text("PENYEWA", 70, y);
+    doc.text("PTG", 128, y, { align: "center" });
+    doc.text("NILAI", 163, y, { align: "right" });
+    doc.text("STATUS", R - 2, y, { align: "right" });
+    return y + 7;
+  };
+
+  pitaAtas();
+  let y = 21;
+  doc.setFont("helvetica", "bold").setFontSize(16).setTextColor(nila[0], nila[1], nila[2]);
+  doc.text(d.settings.namaToko, L, y);
+  doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(abu[0], abu[1], abu[2]);
+  doc.text(d.settings.alamat + "  |  " + d.settings.telepon, L, y + 5);
+
+  doc.setFont("helvetica", "bold").setFontSize(13).setTextColor(emas[0], emas[1], emas[2]);
+  doc.text("LAPORAN PENYEWAAN", R, y, { align: "right" });
+  doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(nila[0], nila[1], nila[2]);
+  doc.text(d.periode, R, y + 5.5, { align: "right" });
+  doc.setFontSize(7.5).setTextColor(abu[0], abu[1], abu[2]);
+  doc.text("Dicetak " + d.cetakPada, R, y + 10, { align: "right" });
+
+  y += 17;
+  doc.setDrawColor(garis[0], garis[1], garis[2]).setLineWidth(0.3);
+  doc.line(L, y, R, y);
+
+  // Ringkasan dalam empat kotak
+  y += 6;
+  const lebar = (R - L - 9) / 4;
+  d.ringkasan.forEach((k, i) => {
+    const x = L + i * (lebar + 3);
+    doc.setFillColor(249, 248, 252);
+    doc.rect(x, y, lebar, 17, "F");
+    doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(nila[0], nila[1], nila[2]);
+    doc.text(k[1], x + 3, y + 8);
+    doc.setFont("helvetica", "normal").setFontSize(7).setTextColor(abu[0], abu[1], abu[2]);
+    doc.text(k[0], x + 3, y + 13);
+  });
+
+  y += 27;
+  doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(nila[0], nila[1], nila[2]);
+  doc.text("Rincian transaksi", L, y);
+  y += 7;
+  y = kepalaTabel(y);
+
+  doc.setFont("helvetica", "normal").setFontSize(8.5);
+  if (d.baris.length === 0) {
+    doc.setTextColor(abu[0], abu[1], abu[2]);
+    doc.text("Tidak ada transaksi pada periode ini.", L + 2, y);
+    y += 8;
+  }
+  d.baris.forEach((b) => {
+    if (y > 262) { doc.addPage(); pitaAtas(); y = kepalaTabel(21); doc.setFont("helvetica", "normal").setFontSize(8.5); }
+    doc.setTextColor(nila[0], nila[1], nila[2]);
+    doc.text(b.tgl, L + 2, y);
+    doc.text(b.kode, 40, y);
+    doc.text(doc.splitTextToSize(b.nama, 54)[0], 70, y);
+    doc.text(String(b.potong), 128, y, { align: "center" });
+    doc.text(b.nilai, 163, y, { align: "right" });
+    doc.setTextColor(abu[0], abu[1], abu[2]);
+    doc.text(b.status, R - 2, y, { align: "right" });
+    y += 5.5;
+    doc.setDrawColor(238, 237, 244);
+    doc.line(L, y - 3.6, R, y - 3.6);
+  });
+
+  // Dua daftar peringkat berdampingan
+  if (y > 215) { doc.addPage(); pitaAtas(); y = 21; }
+  y += 8;
+  const kolom = [
+    { judul: "Kostum paling sering disewa", isi: d.populer, x: L },
+    { judul: "Pelanggan teratas", isi: d.teratas, x: 108 },
+  ];
+  kolom.forEach((k) => {
+    let ky = y;
+    doc.setFont("helvetica", "bold").setFontSize(9.5).setTextColor(nila[0], nila[1], nila[2]);
+    doc.text(k.judul, k.x, ky);
+    ky += 6;
+    doc.setFont("helvetica", "normal").setFontSize(8.5);
+    if (k.isi.length === 0) {
+      doc.setTextColor(abu[0], abu[1], abu[2]);
+      doc.text("Belum ada data.", k.x, ky);
+    }
+    k.isi.forEach((it, n) => {
+      doc.setTextColor(abu[0], abu[1], abu[2]);
+      doc.text(String(n + 1) + ".", k.x, ky);
+      doc.setTextColor(nila[0], nila[1], nila[2]);
+      doc.text(doc.splitTextToSize(it[0], 52)[0], k.x + 5, ky);
+      doc.text(it[1], k.x + 72, ky, { align: "right" });
+      ky += 5.2;
+    });
+  });
+
+  const halaman = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= halaman; i++) {
+    doc.setPage(i);
+    doc.setFont("helvetica", "normal").setFontSize(7).setTextColor(abu[0], abu[1], abu[2]);
+    doc.text(d.settings.namaToko + " · " + d.periode, L, 289);
+    doc.text("Halaman " + i + " dari " + halaman, R, 289, { align: "right" });
+  }
+  return doc;
+}
+
+const PERIODE = [
+  { id: "bulan", label: "Bulan ini" },
+  { id: "tiga", label: "3 bulan terakhir" },
+  { id: "tahun", label: "Tahun ini" },
+  { id: "semua", label: "Semua waktu" },
+];
+
+function Laporan({ rentals, costumes, customers, settings, namaPelanggan, statusTampil, setToast }) {
+  const [periode, setPeriode] = useState("bulan");
+  const [sibuk, setSibuk] = useState(false);
+  const [jam, setJam] = useState(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setJam(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  const mulai = useMemo(() => {
+    const d = new Date();
+    if (periode === "bulan") return hariIni().slice(0, 8) + "01";
+    if (periode === "tiga") { d.setDate(1); d.setMonth(d.getMonth() - 2); }
+    else if (periode === "tahun") { d.setMonth(0); d.setDate(1); }
+    else return "0000-00-00";
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }, [periode]);
+
+  const labelPeriode =
+    periode === "semua"
+      ? "Semua waktu"
+      : tglPanjang(mulai).replace(/^\w+, /, "") + " – " + tglPanjang(hariIni()).replace(/^\w+, /, "");
+
+  const cetakPada = jam.toLocaleString("id-ID", {
+    day: "numeric", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+  });
+
+  const dalam = (r) => (r.tglDikembalikan || r.tglSewa) >= mulai;
+  const daftar = rentals.filter(dalam).sort((a, b) => (a.tglSewa < b.tglSewa ? 1 : -1));
+  const selesai = daftar.filter((r) => r.status === "Selesai");
+
   const pendapatan = selesai.reduce((a, r) => a + r.total + (r.denda || 0), 0);
   const dendaTotal = selesai.reduce((a, r) => a + (r.denda || 0), 0);
+  const belumLunas = daftar.reduce((a, r) => a + sisaBayar(r), 0);
+  const potongKeluar = daftar.reduce((a, r) => a + r.items.reduce((x, i) => x + i.qty, 0), 0);
+
+  const ringkasan = [
+    ["Pemasukan", rp(pendapatan)],
+    ["Transaksi", String(daftar.length)],
+    ["Potong disewa", String(potongKeluar)],
+    ["Belum dibayar", rp(belumLunas)],
+  ];
 
   const bulanan = useMemo(() => {
     const out = [];
@@ -1695,9 +2212,9 @@ function Laporan({ rentals, costumes, customers, namaPelanggan }) {
       const d = new Date();
       d.setDate(1);
       d.setMonth(d.getMonth() - i);
-      const key = d.toISOString().slice(0, 7);
-      const nilai = selesai
-        .filter((r) => (r.tglDikembalikan || r.tglSewa).slice(0, 7) === key)
+      const kunci = d.toISOString().slice(0, 7);
+      const nilai = rentals
+        .filter((r) => r.status === "Selesai" && (r.tglDikembalikan || r.tglSewa).slice(0, 7) === kunci)
         .reduce((a, r) => a + r.total + (r.denda || 0), 0);
       out.push({ label: d.toLocaleDateString("id-ID", { month: "short" }), nilai });
     }
@@ -1708,28 +2225,90 @@ function Laporan({ rentals, costumes, customers, namaPelanggan }) {
 
   const populer = useMemo(() => {
     const m = {};
-    rentals.forEach((r) => r.items.forEach((i) => (m[i.nama] = (m[i.nama] || 0) + i.qty)));
+    daftar.forEach((r) => r.items.forEach((i) => (m[i.nama] = (m[i.nama] || 0) + i.qty)));
     return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [rentals]);
+  }, [rentals, periode]);
 
   const teratas = useMemo(() => {
     const m = {};
     selesai.forEach((r) => (m[r.customerId] = (m[r.customerId] || 0) + r.total + (r.denda || 0)));
     return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [rentals]);
+  }, [rentals, periode]);
+
+  const unduhPDF = async () => {
+    setSibuk(true);
+    try {
+      const jsPDF = await muatJsPDF();
+      const doc = susunLaporanPDF(jsPDF, {
+        settings,
+        periode: labelPeriode,
+        cetakPada,
+        ringkasan,
+        baris: daftar.map((r) => ({
+          tgl: tglPendek(r.tglSewa),
+          kode: r.kode,
+          nama: namaPelanggan(r.customerId),
+          potong: r.items.reduce((a, i) => a + i.qty, 0),
+          nilai: rp(r.total + (r.denda || 0)),
+          status: statusTampil(r),
+        })),
+        populer: populer.map((x) => [x[0], x[1] + "x"]),
+        teratas: teratas.map((x) => [namaPelanggan(x[0]), rp(x[1])]),
+      });
+
+      const namaBerkas = "Laporan " + settings.namaToko + " " + labelPeriode + ".pdf";
+      const blob = doc.output("blob");
+      const berkas = new File([blob], namaBerkas, { type: "application/pdf" });
+
+      if (navigator.canShare && navigator.canShare({ files: [berkas] })) {
+        await navigator.share({ files: [berkas], title: "Laporan " + labelPeriode });
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = namaBerkas;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        setToast("Laporan PDF terunduh");
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      setToast("Laporan gagal dibuat: " + (e.message || "coba lagi"));
+    } finally {
+      setSibuk(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
-      <Header judul="Laporan" sub="Ringkasan pemasukan dan kostum paling laris" />
+      <style>{`
+        @media print {
+          @page { margin: 12mm; }
+          body { background: #fff !important; }
+          body * { visibility: hidden !important; }
+          #lembar-laporan, #lembar-laporan * { visibility: visible !important; }
+          #lembar-laporan { position: absolute; left: 0; top: 0; width: 100%;
+            border: 0 !important; box-shadow: none !important; }
+          .tanpa-cetak { display: none !important; }
+        }
+      `}</style>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card className="p-4"><p className="font-serif text-xl tabular-nums">{rp(pendapatan)}</p><p className="mt-1 text-[13px]">Total pemasukan</p></Card>
-        <Card className="p-4"><p className="font-serif text-xl tabular-nums">{selesai.length}</p><p className="mt-1 text-[13px]">Transaksi selesai</p></Card>
-        <Card className="p-4"><p className="font-serif text-xl tabular-nums">{rp(dendaTotal)}</p><p className="mt-1 text-[13px]">Dari denda</p></Card>
-        <Card className="p-4"><p className="font-serif text-xl tabular-nums">{customers.length}</p><p className="mt-1 text-[13px]">Pelanggan</p></Card>
+      <div className="tanpa-cetak">
+        <Header judul="Laporan" sub="Pilih periode, tinjau, lalu unduh atau kirim" />
       </div>
 
-      <Card className="p-4">
+      <div className="tanpa-cetak flex flex-wrap gap-2">
+        <select className={inputCls + " min-w-[160px] flex-1"} value={periode} onChange={(e) => setPeriode(e.target.value)}>
+          {PERIODE.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+        <Btn variant="gold" onClick={unduhPDF} disabled={sibuk}>
+          <Download size={15} /> {sibuk ? "Menyiapkan…" : "Unduh PDF"}
+        </Btn>
+        <Btn variant="ghost" onClick={() => window.print()}>
+          <Printer size={15} /> Cetak
+        </Btn>
+      </div>
+
+      <Card className="tanpa-cetak p-4">
         <h3 className="font-serif text-base">Pemasukan 6 bulan terakhir</h3>
         <div className="mt-4 flex h-40 items-end gap-2">
           {bulanan.map((b, i) => (
@@ -1745,34 +2324,96 @@ function Laporan({ rentals, costumes, customers, namaPelanggan }) {
         </div>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-4">
-          <h3 className="font-serif text-base">Kostum paling sering disewa</h3>
-          <div className="mt-3 space-y-2">
-            {populer.length === 0 && <p className="text-sm text-indigo-950/45">Belum ada data penyewaan.</p>}
-            {populer.map(([nama, n], i) => (
-              <div key={nama} className="flex items-center gap-3 text-sm">
-                <span className="w-4 font-serif text-indigo-950/35 tabular-nums">{i + 1}</span>
-                <span className="min-w-0 flex-1 truncate">{nama}</span>
-                <span className="tabular-nums text-indigo-950/55">{n}×</span>
-              </div>
-            ))}
+      {/* Lembar yang diunduh dan dicetak */}
+      <div id="lembar-laporan" className="overflow-hidden rounded-xl border border-indigo-950/10 bg-white">
+        <div className="h-2.5 w-full" style={kain()} />
+        <div className="p-5 sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="font-serif text-xl leading-tight">{settings.namaToko}</p>
+              <p className="mt-1 text-xs text-indigo-950/55">{settings.alamat} · {settings.telepon}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-serif text-lg tracking-wide text-amber-700">LAPORAN PENYEWAAN</p>
+              <p className="mt-0.5 text-xs">{labelPeriode}</p>
+              <p className="mt-1 text-[11px] text-indigo-950/50">Dicetak {cetakPada}</p>
+            </div>
           </div>
-        </Card>
 
-        <Card className="p-4">
-          <h3 className="font-serif text-base">Pelanggan teratas</h3>
-          <div className="mt-3 space-y-2">
-            {teratas.length === 0 && <p className="text-sm text-indigo-950/45">Belum ada transaksi selesai.</p>}
-            {teratas.map(([id, nilai], i) => (
-              <div key={id} className="flex items-center gap-3 text-sm">
-                <span className="w-4 font-serif text-indigo-950/35 tabular-nums">{i + 1}</span>
-                <span className="min-w-0 flex-1 truncate">{namaPelanggan(id)}</span>
-                <span className="tabular-nums text-indigo-950/55">{rp(nilai)}</span>
+          <div className="mt-5 grid grid-cols-2 gap-2.5 border-y border-indigo-950/10 py-4 sm:grid-cols-4">
+            {ringkasan.map((k) => (
+              <div key={k[0]} className="rounded-lg bg-indigo-950/[0.03] px-3 py-2.5">
+                <p className="font-serif text-lg leading-tight tabular-nums">{k[1]}</p>
+                <p className="mt-0.5 text-[11px] text-indigo-950/50">{k[0]}</p>
               </div>
             ))}
           </div>
-        </Card>
+
+          <h3 className="mt-5 font-serif text-base">Rincian transaksi</h3>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-indigo-950/15 text-[10px] uppercase tracking-wider text-indigo-950/50">
+                  <th className="py-2">Tanggal</th>
+                  <th className="py-2">Kode</th>
+                  <th className="py-2">Penyewa</th>
+                  <th className="py-2 text-center">Ptg</th>
+                  <th className="py-2 text-right">Nilai</th>
+                  <th className="py-2 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {daftar.length === 0 && (
+                  <tr><td colSpan="6" className="py-4 text-center text-indigo-950/45">Tidak ada transaksi pada periode ini.</td></tr>
+                )}
+                {daftar.map((r) => (
+                  <tr key={r.id} className="border-b border-indigo-950/5">
+                    <td className="py-2 whitespace-nowrap">{tglPendek(r.tglSewa)}</td>
+                    <td className="py-2 font-mono text-[11px]">{r.kode}</td>
+                    <td className="py-2">{namaPelanggan(r.customerId)}</td>
+                    <td className="py-2 text-center tabular-nums">{r.items.reduce((a, i) => a + i.qty, 0)}</td>
+                    <td className="py-2 text-right tabular-nums">{rp(r.total + (r.denda || 0))}</td>
+                    <td className="py-2 text-right text-indigo-950/55">{statusTampil(r)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div>
+              <h3 className="font-serif text-base">Kostum paling sering disewa</h3>
+              <div className="mt-2 space-y-1.5">
+                {populer.length === 0 && <p className="text-xs text-indigo-950/45">Belum ada data.</p>}
+                {populer.map(([nama, n], i) => (
+                  <div key={nama} className="flex items-center gap-3 text-sm">
+                    <span className="w-4 font-serif text-indigo-950/35 tabular-nums">{i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate">{nama}</span>
+                    <span className="tabular-nums text-indigo-950/55">{n}×</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="font-serif text-base">Pelanggan teratas</h3>
+              <div className="mt-2 space-y-1.5">
+                {teratas.length === 0 && <p className="text-xs text-indigo-950/45">Belum ada transaksi selesai.</p>}
+                {teratas.map(([id, nilai], i) => (
+                  <div key={id} className="flex items-center gap-3 text-sm">
+                    <span className="w-4 font-serif text-indigo-950/35 tabular-nums">{i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate">{namaPelanggan(id)}</span>
+                    <span className="tabular-nums text-indigo-950/55">{rp(nilai)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-6 border-t border-indigo-950/10 pt-3 text-[11px] text-indigo-950/50">
+            Pemasukan dihitung dari transaksi berstatus selesai, termasuk denda keterlambatan.
+            Kolom belum dibayar mencakup sisa tagihan seluruh transaksi pada periode ini.
+          </p>
+        </div>
       </div>
     </div>
   );
