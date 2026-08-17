@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Jhio Costume" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231e1b4b'/><rect y='20' width='100' height='18' fill='%23c9922b'/><rect y='58' width='100' height='18' fill='%237f1d1d'/></svg>" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
 <script>
   (function () {
     var asli = console.warn;
@@ -109,6 +111,12 @@ const FileText = ({ size = 20, className = "" }) => (
 );
 const Printer = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg>
+);
+const Database = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><circle cx="M" cy="2" r="1" /><circle cx="M" cy="3" r=" " /><circle cx="M" cy="3" r=" " /><path d="M21 5c0 1.66-4.03 3-9 3S3 6.66 3 5s4.03-3 9-3 9 1.34 9 3Z" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" /></svg>
+);
+const Upload = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><circle cx="M" cy="2" r="1" /><circle cx="M" cy="1" r="7" /><circle cx="M" cy="1" r="2" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></svg>
 );
 const Camera = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><circle cx="12" cy="13" r="3" /><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" /></svg>
@@ -247,6 +255,7 @@ const NAV = [
   { id: "pelanggan", label: "Pelanggan", icon: Users },
   { id: "jadwal", label: "Jadwal", icon: CalendarDays },
   { id: "laporan", label: "Laporan", icon: BarChart3 },
+  { id: "cadangan", label: "Cadangan", icon: Database },
   { id: "pengaturan", label: "Pengaturan", icon: SettingsIcon },
 ];
 
@@ -269,6 +278,37 @@ const Field = ({ label, children }) => (
     {children}
   </label>
 );
+
+/* Kolom angka yang boleh dikosongkan, dengan pemisah ribuan */
+function InputAngka({ nilai, onNilai, placeholder = "0", className }) {
+  const tampil = (n) => (n ? Number(n).toLocaleString("id-ID") : "");
+  const [teks, setTeks] = useState(tampil(nilai));
+
+  useEffect(() => {
+    const angka = Number(String(teks).replace(/\D/g, "")) || 0;
+    if (angka !== (Number(nilai) || 0)) setTeks(tampil(nilai));
+    // eslint-disable-next-line
+  }, [nilai]);
+
+  const ubah = (e) => {
+    const bersih = e.target.value.replace(/\D/g, "");
+    setTeks(bersih ? Number(bersih).toLocaleString("id-ID") : "");
+    onNilai(bersih ? Number(bersih) : 0);
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      className={className || inputCls}
+      value={teks}
+      onChange={ubah}
+      onFocus={(e) => e.target.select()}
+      placeholder={placeholder}
+    />
+  );
+}
 
 const Btn = ({ variant = "primary", className = "", ...p }) => {
   const base =
@@ -500,6 +540,7 @@ function App() {
           {tab === "pelanggan" && <Pelanggan {...P} />}
           {tab === "jadwal" && <Jadwal {...P} />}
           {tab === "laporan" && <Laporan {...P} />}
+          {tab === "cadangan" && <Cadangan {...P} />}
           {tab === "pengaturan" && <Pengaturan {...P} />}
         </main>
       </div>
@@ -792,13 +833,13 @@ function Katalog({ costumes, set, tersedia, setToast }) {
               <input className={inputCls} value={form.ukuran} onChange={(e) => { const v = e.target.value; setForm((x) => ({ ...x, ukuran: v })); }} placeholder="4-6 th, 7-9 th" />
             </Field>
             <Field label="Tarif sewa per hari">
-              <input type="number" min="0" className={inputCls} value={form.harga} onChange={(e) => { const v = +e.target.value || 0; setForm((x) => ({ ...x, harga: v })); }} />
+              <InputAngka nilai={form.harga} onNilai={(v) => setForm((x) => ({ ...x, harga: v }))} />
             </Field>
             <Field label="Nilai ganti bila rusak/hilang">
-              <input type="number" min="0" className={inputCls} value={form.deposit} onChange={(e) => { const v = +e.target.value || 0; setForm((x) => ({ ...x, deposit: v })); }} />
+              <InputAngka nilai={form.deposit} onNilai={(v) => setForm((x) => ({ ...x, deposit: v }))} />
             </Field>
             <Field label="Jumlah potong">
-              <input type="number" min="0" className={inputCls} value={form.stok} onChange={(e) => { const v = +e.target.value || 0; setForm((x) => ({ ...x, stok: v })); }} />
+              <InputAngka nilai={form.stok} onNilai={(v) => setForm((x) => ({ ...x, stok: v }))} />
             </Field>
             <Field label="Kondisi">
               <select className={inputCls} value={form.kondisi} onChange={(e) => { const v = e.target.value; setForm((x) => ({ ...x, kondisi: v })); }}>
@@ -1222,8 +1263,7 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="DP / uang muka">
-            <input type="number" min="0" inputMode="numeric" className={inputCls} value={f.dp}
-              onChange={(e) => { const v = +e.target.value || 0; setF((x) => ({ ...x, dp: v })); }} />
+            <InputAngka nilai={f.dp} onNilai={(v) => setF((x) => ({ ...x, dp: v }))} />
           </Field>
           <Field label="Keterangan jaminan">
             <input type="text" className={inputCls} value={f.ktpCatatan} autoComplete="off"
@@ -1386,10 +1426,10 @@ function Pengembalian({ rentals, set, namaPelanggan, telat, settings, setToast, 
                 <input type="date" className={inputCls} value={tgl} onChange={(e) => hitungUlang(e.target.value)} />
               </Field>
               <Field label={`Denda (${rp(settings.dendaPerHari)}/potong/hari)`}>
-                <input type="number" min="0" className={inputCls} value={denda} onChange={(e) => setDenda(+e.target.value)} />
+                <InputAngka nilai={denda} onNilai={setDenda} />
               </Field>
               <Field label="Potongan kerusakan / hilang">
-                <input type="number" min="0" className={inputCls} value={potongan} onChange={(e) => setPotongan(+e.target.value)} />
+                <InputAngka nilai={potongan} onNilai={setPotongan} />
               </Field>
               <Field label="Kondisi saat kembali">
                 <select className={inputCls} value={kondisi} onChange={(e) => setKondisi(e.target.value)}>
@@ -2456,22 +2496,240 @@ function Laporan({ rentals, costumes, customers, settings, namaPelanggan, status
 }
 
 /* ------------------------------------------------------------------ */
+/* Cadangan & pemulihan                                                */
+/* ------------------------------------------------------------------ */
+
+function Cadangan({ data, set, settings, setToast }) {
+  const [sibuk, setSibuk] = useState(false);
+  const [pratinjau, setPratinjau] = useState(null);
+  const [konfirmasiKosong, setKonfirmasiKosong] = useState(false);
+
+  const { costumes, customers, rentals } = data;
+  const berfoto = rentals.filter((r) => r.ktpFoto).length;
+
+  const ukuran = useMemo(() => {
+    const b = new Blob([JSON.stringify(data)]).size;
+    return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB";
+  }, [data]);
+
+  const isi = [
+    ["Jenis kostum", costumes.length],
+    ["Pelanggan", customers.length],
+    ["Transaksi", rentals.length],
+    ["Foto KTP", berfoto],
+  ];
+
+  const simpanCadangan = async () => {
+    setSibuk(true);
+    try {
+      const paket = {
+        aplikasi: "Jhio Costume",
+        versi: VERSI,
+        dibuat: new Date().toISOString(),
+        data: { costumes, customers, rentals, settings },
+      };
+      const namaBerkas = "Cadangan " + (settings.namaToko || "Jhio Costume") + " " + hariIni() + ".json";
+      const blob = new Blob([JSON.stringify(paket)], { type: "application/json" });
+      const berkas = new File([blob], namaBerkas, { type: "application/json" });
+
+      if (navigator.canShare && navigator.canShare({ files: [berkas] })) {
+        await navigator.share({ files: [berkas], title: namaBerkas });
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = namaBerkas;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+      set({ settings: { ...settings, cadanganTerakhir: hariIni() } });
+      setToast("Cadangan dibuat");
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      setToast("Cadangan gagal: " + (e.message || "coba lagi"));
+    } finally {
+      setSibuk(false);
+    }
+  };
+
+  const bacaBerkas = (e) => {
+    const berkas = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!berkas) return;
+    const pembaca = new FileReader();
+    pembaca.onload = () => {
+      try {
+        const isiJson = JSON.parse(pembaca.result);
+        const d = isiJson.data && isiJson.data.costumes ? isiJson.data : isiJson;
+        if (!Array.isArray(d.costumes) || !Array.isArray(d.rentals) || !Array.isArray(d.customers))
+          throw new Error("bukan berkas cadangan Jhio Costume");
+        setPratinjau({ d, dibuat: isiJson.dibuat || null, nama: berkas.name });
+      } catch (err) {
+        setToast("Berkas tidak dikenali: " + (err.message || "rusak"));
+      }
+    };
+    pembaca.onerror = () => setToast("Berkas gagal dibaca");
+    pembaca.readAsText(berkas);
+  };
+
+  const gabungDaftar = (lama, baru) => {
+    const peta = new Map(lama.map((x) => [x.id, x]));
+    baru.forEach((x) => peta.set(x.id, x));
+    return [...peta.values()];
+  };
+
+  const pulihkan = (mode) => {
+    const d = pratinjau.d;
+    if (mode === "ganti") {
+      set({
+        costumes: d.costumes,
+        customers: d.customers,
+        rentals: d.rentals,
+        settings: { ...settings, ...(d.settings || {}) },
+      });
+      setToast("Data dipulihkan dari cadangan");
+    } else {
+      set({
+        costumes: gabungDaftar(costumes, d.costumes),
+        customers: gabungDaftar(customers, d.customers),
+        rentals: gabungDaftar(rentals, d.rentals),
+      });
+      setToast("Cadangan digabungkan dengan data sekarang");
+    }
+    setPratinjau(null);
+  };
+
+  const hitung = (d) => d.costumes.length + " kostum · " + d.customers.length + " pelanggan · " + d.rentals.length + " transaksi";
+
+  return (
+    <div className="space-y-5">
+      <Header judul="Cadangan" sub="Simpan sebelum ganti HP, pulihkan di HP baru" />
+
+      <Card className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-serif text-base">Isi data saat ini</h3>
+            <p className="mt-0.5 text-xs text-indigo-950/50">Memakai {ukuran} dari penyimpanan HP</p>
+          </div>
+          <Database size={18} className="text-amber-600" />
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          {isi.map((k) => (
+            <div key={k[0]} className="rounded-lg bg-indigo-950/[0.03] px-3 py-2.5">
+              <p className="font-serif text-lg leading-tight tabular-nums">{k[1]}</p>
+              <p className="mt-0.5 text-[11px] text-indigo-950/50">{k[0]}</p>
+            </div>
+          ))}
+        </div>
+        {settings.cadanganTerakhir ? (
+          <p className="mt-3 text-xs text-indigo-950/55">Cadangan terakhir dibuat {tglPanjang(settings.cadanganTerakhir)}.</p>
+        ) : (
+          <p className="mt-3 text-xs text-red-800">Belum pernah dibuat cadangan.</p>
+        )}
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="font-serif text-base">1. Simpan cadangan</h3>
+        <p className="mt-1 text-sm text-indigo-950/60">
+          Seluruh katalog, pelanggan, transaksi, foto KTP, dan pengaturan dibungkus jadi satu berkas.
+          Kirim ke WhatsApp diri sendiri, Google Drive, atau email supaya aman.
+        </p>
+        <div className="mt-3">
+          <Btn variant="gold" onClick={simpanCadangan} disabled={sibuk}>
+            <Download size={15} /> {sibuk ? "Menyiapkan…" : "Simpan cadangan"}
+          </Btn>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="font-serif text-base">2. Pulihkan di HP baru</h3>
+        <p className="mt-1 text-sm text-indigo-950/60">
+          Buka alamat aplikasi ini di HP baru, masuk ke menu Cadangan, lalu pilih berkas cadangannya.
+        </p>
+        <div className="mt-3">
+          <label className={tombolFoto}>
+            <Upload size={15} /> Pilih berkas cadangan
+            <input type="file" accept=".json,application/json" onChange={bacaBerkas} className="sr-only" />
+          </label>
+        </div>
+      </Card>
+
+      <Card className="border-red-800/20 p-4">
+        <h3 className="font-serif text-base">Kosongkan semua data</h3>
+        <p className="mt-1 text-sm text-indigo-950/60">
+          Menghapus katalog, pelanggan, dan seluruh riwayat dari HP ini. Buat cadangan lebih dulu.
+        </p>
+        <div className="mt-3">
+          <Btn variant="danger" onClick={() => setKonfirmasiKosong(true)}><Trash2 size={15} /> Kosongkan</Btn>
+        </div>
+      </Card>
+
+      <Modal
+        open={!!pratinjau}
+        onClose={() => setPratinjau(null)}
+        title="Isi berkas cadangan"
+        sub={pratinjau?.nama}
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setPratinjau(null)}>Batal</Btn>
+            <Btn variant="outline" onClick={() => pulihkan("gabung")}>Gabungkan</Btn>
+            <Btn variant="danger" onClick={() => pulihkan("ganti")}>Ganti semua</Btn>
+          </>
+        }
+      >
+        {pratinjau && (
+          <div className="space-y-3 text-sm">
+            <Card className="p-3">
+              <Label>Isi cadangan</Label>
+              <p>{hitung(pratinjau.d)}</p>
+              {pratinjau.d.settings?.namaToko && (
+                <p className="mt-1 text-xs text-indigo-950/55">Atas nama {pratinjau.d.settings.namaToko}</p>
+              )}
+              {pratinjau.dibuat && (
+                <p className="text-xs text-indigo-950/55">
+                  Dibuat {new Date(pratinjau.dibuat).toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </p>
+              )}
+            </Card>
+            <Card className="p-3">
+              <Label>Data di HP ini sekarang</Label>
+              <p>{hitung(data)}</p>
+            </Card>
+            <p className="text-xs text-indigo-950/60">
+              <b>Ganti semua</b> membuang data yang ada sekarang dan memakai isi cadangan — pilih ini kalau HP-nya masih kosong.
+              <br />
+              <b>Gabungkan</b> menambahkan isi cadangan ke data sekarang; kalau ada kode yang sama, versi dari cadangan yang dipakai.
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={konfirmasiKosong}
+        onClose={() => setKonfirmasiKosong(false)}
+        title="Kosongkan semua data?"
+        sub="Katalog, pelanggan, dan riwayat transaksi akan hilang."
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setKonfirmasiKosong(false)}>Batal</Btn>
+            <Btn variant="danger" onClick={() => { set({ costumes: [], customers: [], rentals: [] }); setKonfirmasiKosong(false); setToast("Data dikosongkan"); }}>
+              Ya, kosongkan
+            </Btn>
+          </>
+        }
+      >
+        <p className="text-sm text-indigo-950/70">Tindakan ini tidak bisa dibatalkan.</p>
+      </Modal>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Pengaturan                                                          */
 /* ------------------------------------------------------------------ */
 
-function Pengaturan({ settings, set, data, setToast }) {
+function Pengaturan({ settings, set, setToast, setTab }) {
   const [f, setF] = useState(settings);
-  const [konfirmasi, setKonfirmasi] = useState(false);
 
-  const unduh = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `cadangan-rental-${hariIni()}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    setToast("Cadangan diunduh");
-  };
 
   return (
     <div className="space-y-5">
@@ -2484,7 +2742,7 @@ function Pengaturan({ settings, set, data, setToast }) {
           </div>
           <Field label="Telepon"><input type="tel" inputMode="tel" autoComplete="off" className={inputCls} value={f.telepon} onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, telepon: v })); }} /></Field>
           <Field label="Denda per potong per hari">
-            <input type="number" min="0" inputMode="numeric" className={inputCls} value={f.dendaPerHari} onChange={(e) => { const v = +e.target.value || 0; setF((x) => ({ ...x, dendaPerHari: v })); }} />
+            <InputAngka nilai={f.dendaPerHari} onNilai={(v) => setF((x) => ({ ...x, dendaPerHari: v }))} />
           </Field>
           <div className="sm:col-span-2">
             <Field label="Alamat"><input type="text" autoComplete="off" className={inputCls} value={f.alamat} onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, alamat: v })); }} /></Field>
@@ -2496,35 +2754,18 @@ function Pengaturan({ settings, set, data, setToast }) {
       </Card>
 
       <Card className="p-4">
-        <h3 className="font-serif text-base">Data</h3>
-        <p className="mt-1 text-[11px] font-mono text-indigo-950/40">Versi {VERSI}</p>
-        <p className="mt-1 text-sm text-indigo-950/55">
-          Semua catatan tersimpan otomatis di perangkat ini. Unduh cadangan sebelum mengganti perangkat.
+        <h3 className="font-serif text-base">Data &amp; cadangan</h3>
+        <p className="mt-1 text-sm text-indigo-950/60">
+          Semua catatan tersimpan di HP ini saja. Buat cadangan berkala lewat menu Cadangan supaya aman saat ganti HP.
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Btn variant="outline" onClick={unduh}><Download size={15} /> Unduh cadangan</Btn>
-          <Btn variant="danger" onClick={() => setKonfirmasi(true)}><Trash2 size={15} /> Kosongkan semua data</Btn>
+        <p className="mt-2 text-[11px] font-mono text-indigo-950/40">Versi {VERSI}</p>
+        <div className="mt-3">
+          <Btn variant="outline" onClick={() => setTab("cadangan")}>
+            <Database size={15} /> Buka menu Cadangan
+          </Btn>
         </div>
       </Card>
 
-      <Modal
-        open={konfirmasi}
-        onClose={() => setKonfirmasi(false)}
-        title="Kosongkan semua data?"
-        sub="Katalog, pelanggan, dan riwayat transaksi akan hilang."
-        footer={
-          <>
-            <Btn variant="ghost" onClick={() => setKonfirmasi(false)}>Batal</Btn>
-            <Btn variant="danger" onClick={() => { set({ costumes: [], customers: [], rentals: [] }); setKonfirmasi(false); setToast("Data dikosongkan"); }}>
-              Ya, kosongkan
-            </Btn>
-          </>
-        }
-      >
-        <p className="text-sm text-indigo-950/70">
-          Tindakan ini tidak bisa dibatalkan. Unduh cadangan dulu jika masih dibutuhkan.
-        </p>
-      </Modal>
     </div>
   );
 }
