@@ -183,6 +183,18 @@ const tglPendek = (s) => {
   });
 };
 
+/* Berapa hari yang ditagih, sesuai aturan yang dipilih di Pengaturan */
+const hitungHari = (a, b, st) => {
+  const beda = Math.max(0, selisihHari(a, b));
+  const cara = (st && st.caraHitung) || "toleransi";
+  if (cara === "inklusif") return beda + 1;
+  if (cara === "selisih") return Math.max(1, beda);
+  const bebas = (st?.toleransiAmbil ?? 1) + (st?.toleransiKembali ?? 1);
+  return Math.max(1, beda - bebas);
+};
+
+const hariSewa = (r) => r.hari || durasi(r.tglSewa, r.tglKembali);
+
 const sisaBayar = (r) =>
   Math.max(0, (r.total || 0) + (r.denda || 0) + (r.potongan || 0) - (r.dp || 0));
 
@@ -221,6 +233,9 @@ const SEED = {
     telepon: "0812-0000-0000",
     alamat: "Jl. Melati No. 12",
     dendaPerHari: 15000,
+    caraHitung: "toleransi",
+    toleransiAmbil: 1,
+    toleransiKembali: 1,
   },
   costumes: [
     { id: "k1", nama: "Kebaya Jawa Sogan", kategori: "Nusantara", asal: "Jawa Tengah", target: "Dewasa", ukuran: "M, L, XL", harga: 85000, deposit: 150000, stok: 6, kondisi: "Baik", warna: ["#6b4a2b", "#c9922b", "#2e1f14"] },
@@ -933,7 +948,7 @@ function Penyewaan({ rentals, costumes, customers, set, tersedia, namaPelanggan,
                   </div>
                   <h3 className="mt-1 font-serif text-[17px] leading-tight">{namaPelanggan(r.customerId)}</h3>
                   <p className="mt-1 text-xs text-indigo-950/55">
-                    {tglPendek(r.tglSewa)} → {tglPendek(r.tglKembali)} · {durasi(r.tglSewa, r.tglKembali)} hari ·{" "}
+                    {tglPendek(r.tglSewa)} → {tglPendek(r.tglKembali)} · {hariSewa(r)} hari ditagih ·{" "}
                     {r.items.reduce((a, i) => a + i.qty, 0)} potong
                   </p>
                   <p className="mt-1.5 truncate text-xs text-indigo-950/45">
@@ -964,6 +979,7 @@ function Penyewaan({ rentals, costumes, customers, set, tersedia, namaPelanggan,
         set={set}
         tersedia={tersedia}
         setToast={setToast}
+        settings={settings}
       />
 
       <Modal
@@ -1027,7 +1043,7 @@ const Nota = ({ r, nama, settings }) => (
     </div>
 
     <div className="space-y-1.5 rounded-lg bg-white p-4 text-sm">
-      <Baris k={`Sewa ${durasi(r.tglSewa, r.tglKembali)} hari`} v={rp(r.subtotal)} />
+      <Baris k={`Sewa ${hariSewa(r)} hari`} v={rp(r.subtotal)} />
       {r.denda > 0 && <Baris k={`Denda ${r.hariTelat} hari terlambat`} v={rp(r.denda)} />}
       {r.potongan > 0 && <Baris k="Potongan kerusakan" v={rp(r.potongan)} />}
       <div className="flex justify-between border-t border-indigo-950/10 pt-2 font-serif text-base">
@@ -1062,13 +1078,15 @@ const Baris = ({ k, v }) => (
 /* Form sewa                                                           */
 /* ------------------------------------------------------------------ */
 
-function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, setToast }) {
+function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, setToast, settings }) {
   const kosong = {
     customerId: customers[0]?.id || "",
     pelangganBaru: "",
     hpBaru: "",
     tglSewa: hariIni(),
-    tglKembali: tambahHari(hariIni(), 1),
+    tglKembali: tambahHari(hariIni(), 2),
+    hari: 1,
+    hariManual: false,
     items: [],
     dp: 0,
     ktpFoto: null,
@@ -1079,11 +1097,24 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    if (open) { setF({ ...kosong, customerId: customers[0]?.id || "" }); setQ(""); }
+    if (open) {
+      setF({
+        ...kosong,
+        customerId: customers[0]?.id || "",
+        hari: hitungHari(kosong.tglSewa, kosong.tglKembali, settings),
+      });
+      setQ("");
+    }
     // eslint-disable-next-line
   }, [open]);
 
-  const hari = durasi(f.tglSewa, f.tglKembali);
+  useEffect(() => {
+    setF((x) => (x.hariManual ? x : { ...x, hari: hitungHari(x.tglSewa, x.tglKembali, settings) }));
+    // eslint-disable-next-line
+  }, [f.tglSewa, f.tglKembali, settings.caraHitung, settings.toleransiAmbil, settings.toleransiKembali]);
+
+  const bedaTanggal = Math.max(0, selisihHari(f.tglSewa, f.tglKembali));
+  const hari = Math.max(1, f.hari || 1);
   const subtotal = f.items.reduce((a, i) => a + i.harga * i.qty, 0) * hari;
   const total = subtotal;
   const sisa = Math.max(0, subtotal - (+f.dp || 0));
@@ -1129,6 +1160,7 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
       tglKembali: f.tglKembali,
       tglDikembalikan: null,
       status: f.tglSewa === hariIni() ? "Disewa" : "Booking",
+      hari,
       subtotal,
       total,
       dp: +f.dp || 0,
@@ -1215,6 +1247,25 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
           <Field label="Tanggal dikembalikan">
             <input type="date" className={inputCls} value={f.tglKembali} onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, tglKembali: v })); }} />
           </Field>
+          <div className="sm:col-span-2">
+            <Field label="Hari yang ditagih">
+              <InputAngka nilai={f.hari} onNilai={(v) => setF((x) => ({ ...x, hari: v, hariManual: true }))} placeholder="1" />
+            </Field>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <p className="text-[11px] text-indigo-950/50">
+                Kostum di luar {bedaTanggal + 1} hari kalender ({bedaTanggal} malam) · ditagih {hari} hari
+              </p>
+              {f.hariManual && (
+                <button
+                  type="button"
+                  onClick={() => setF((x) => ({ ...x, hariManual: false, hari: hitungHari(x.tglSewa, x.tglKembali, settings) }))}
+                  className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-500/10 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  Kembalikan ke hitungan otomatis
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div>
@@ -1285,7 +1336,7 @@ function FormSewa({ open, onClose, costumes, customers, rentals, set, tersedia, 
 
         <div className="rounded-lg bg-indigo-950 p-4 text-amber-50">
           <div className="flex justify-between text-sm text-amber-50/70">
-            <span>{f.items.reduce((a, i) => a + i.qty, 0)} potong × {hari} hari</span>
+            <span>{f.items.reduce((a, i) => a + i.qty, 0)} potong × {hari} hari ditagih</span>
             <span className="tabular-nums">{rp(subtotal)}</span>
           </div>
           <div className="mt-1 flex justify-between text-sm text-amber-50/70">
@@ -1689,7 +1740,7 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
       </div>
     );
 
-  const hari = durasi(r.tglSewa, r.tglKembali);
+  const hari = hariSewa(r);
   const total = r.total + (r.denda || 0) + (r.potongan || 0);
   const sisa = sisaBayar(r);
   const pel = customers.find((c) => c.id === r.customerId);
@@ -1867,7 +1918,7 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
               <Label>Masa sewa</Label>
               <p className="text-sm">{tglPanjang(r.tglSewa)}</p>
               <p className="text-sm">s/d {tglPanjang(r.tglKembali)}</p>
-              <p className="mt-1 text-xs text-indigo-950/55">{hari} hari · {r.items.reduce((a, i) => a + i.qty, 0)} potong</p>
+              <p className="mt-1 text-xs text-indigo-950/55">{hari} hari ditagih · {r.items.reduce((a, i) => a + i.qty, 0)} potong</p>
             </div>
           </div>
 
@@ -2744,6 +2795,31 @@ function Pengaturan({ settings, set, setToast, setTab }) {
           <Field label="Denda per potong per hari">
             <InputAngka nilai={f.dendaPerHari} onNilai={(v) => setF((x) => ({ ...x, dendaPerHari: v }))} />
           </Field>
+          <div className="sm:col-span-2">
+            <Field label="Cara menghitung hari sewa">
+              <select className={inputCls} value={f.caraHitung || "toleransi"} onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, caraHitung: v })); }}>
+                <option value="toleransi">Per pemakaian, ambil dan kembali diberi kelonggaran</option>
+                <option value="selisih">Selisih tanggal (menginap berapa malam)</option>
+                <option value="inklusif">Semua tanggal dihitung, termasuk hari kembali</option>
+              </select>
+            </Field>
+          </div>
+          {(f.caraHitung || "toleransi") === "toleransi" && (
+            <>
+              <Field label="Boleh ambil berapa hari lebih awal">
+                <InputAngka nilai={f.toleransiAmbil ?? 1} onNilai={(v) => setF((x) => ({ ...x, toleransiAmbil: v }))} />
+              </Field>
+              <Field label="Boleh kembali berapa hari setelahnya">
+                <InputAngka nilai={f.toleransiKembali ?? 1} onNilai={(v) => setF((x) => ({ ...x, toleransiKembali: v }))} />
+              </Field>
+            </>
+          )}
+          <div className="sm:col-span-2">
+            <p className="rounded-lg bg-indigo-950/[0.03] px-3 py-2.5 text-xs text-indigo-950/60">
+              Contoh dengan aturan sekarang: ambil 14 Agu, acara 15 Agu, kembali 16 Agu →{" "}
+              <b>{hitungHari("2026-08-14", "2026-08-16", f)} hari ditagih</b>. Angka ini tetap bisa diubah manual di tiap transaksi.
+            </p>
+          </div>
           <div className="sm:col-span-2">
             <Field label="Alamat"><input type="text" autoComplete="off" className={inputCls} value={f.alamat} onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, alamat: v })); }} /></Field>
           </div>
