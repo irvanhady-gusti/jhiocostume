@@ -195,6 +195,8 @@ const hitungHari = (a, b, st) => {
 
 const hariSewa = (r) => r.hari || durasi(r.tglSewa, r.tglKembali);
 
+const teleponToko = (st) => [st.telepon, st.telepon2].filter(Boolean).join(" / ");
+
 const sisaBayar = (r) =>
   Math.max(0, (r.total || 0) + (r.denda || 0) + (r.potongan || 0) - (r.dp || 0));
 
@@ -231,6 +233,7 @@ const SEED = {
   settings: {
     namaToko: "Jhio Costume",
     telepon: "0812-0000-0000",
+    telepon2: "",
     alamat: "Jl. Melati No. 12",
     dendaPerHari: 15000,
     caraHitung: "toleransi",
@@ -451,7 +454,7 @@ function FotoKTP({ foto, onGanti, setToast }) {
 /* Aplikasi                                                            */
 /* ------------------------------------------------------------------ */
 
-function App() {
+function Aplikasi() {
   const [tab, setTab] = useState("beranda");
   const [data, setData] = useState(SEED);
   const [siap, setSiap] = useState(false);
@@ -1013,7 +1016,7 @@ const Nota = ({ r, nama, settings }) => (
       <div className="flex justify-between gap-4">
         <div>
           <p className="font-serif text-base">{settings.namaToko}</p>
-          <p className="text-xs text-indigo-950/50">{settings.alamat} · {settings.telepon}</p>
+          <p className="text-xs text-indigo-950/50">{settings.alamat} · {teleponToko(settings)}</p>
         </div>
         <div className="h-8 w-8 shrink-0 rounded" style={kain()} />
       </div>
@@ -1709,6 +1712,286 @@ function susunPDF(jsPDF, d) {
   return doc;
 }
 
+/* Bentuk data invoice yang dipakai layar, PDF, dan tautan */
+const bentukInvoice = (r, settings, pel, namaPel, cetakPada) => ({
+  toko: settings.namaToko,
+  alamat: settings.alamat,
+  telepon: teleponToko(settings),
+  dendaPerHari: settings.dendaPerHari,
+  nomor: "INV/" + r.kode.replace("SW-", ""),
+  cetakPada,
+  namaPel,
+  hp: pel?.hp || "",
+  alamatPel: pel?.alamat || "",
+  dari: r.tglSewa,
+  sampai: r.tglKembali,
+  hari: hariSewa(r),
+  potong: r.items.reduce((a, i) => a + i.qty, 0),
+  items: r.items.map((i) => ({ nama: i.nama, qty: i.qty, harga: i.harga, jumlah: i.harga * i.qty * hariSewa(r) })),
+  subtotal: r.subtotal,
+  denda: r.denda || 0,
+  hariTelat: r.hariTelat || 0,
+  potongan: r.potongan || 0,
+  total: r.total + (r.denda || 0) + (r.potongan || 0),
+  dp: r.dp || 0,
+  sisa: sisaBayar(r),
+  lunas: !!r.lunas,
+  catatan: r.catatan || "",
+  jaminan: r.ktpFoto ? "KTP diterima" : r.ktpCatatan || "—",
+});
+
+const keKode = (obj) =>
+  btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+const dariKode = (kode) =>
+  JSON.parse(decodeURIComponent(escape(atob(kode.replace(/-/g, "+").replace(/_/g, "/")))));
+
+const tautanInvoice = (v) =>
+  window.location.origin + window.location.pathname + "#inv=" + keKode(v);
+
+const pesanInvoice = (v, tautan) =>
+  [
+    "*" + v.toko + "*",
+    "Invoice " + v.nomor,
+    "",
+    "Penyewa: " + v.namaPel,
+    "Sewa: " + tglPanjang(v.dari) + " s/d " + tglPanjang(v.sampai) + " (" + v.hari + " hari)",
+    "",
+    ...v.items.map((i) => "- " + i.nama + " x" + i.qty + " = " + rp(i.jumlah)),
+    "",
+    "Total tagihan: " + rp(v.total),
+    v.dp > 0 ? "DP dibayar: -" + rp(v.dp) : null,
+    "*SISA DIBAYAR: " + rp(v.sisa) + "*",
+    "Status: " + (v.lunas ? "LUNAS" : "BELUM LUNAS"),
+    "",
+    "Invoice lengkap (bisa disimpan PDF):",
+    tautan,
+    "",
+    "Terima kasih sudah mempercayakan busana acara Anda kepada kami.",
+    v.toko + " - " + v.telepon,
+  ].filter((x) => x !== null).join("\n");
+
+const dataPDF = (v) => ({
+  settings: { namaToko: v.toko, alamat: v.alamat, telepon: v.telepon },
+  nomor: v.nomor,
+  cetakPada: v.cetakPada,
+  namaPel: v.namaPel,
+  hp: v.hp,
+  alamat: v.alamatPel,
+  dari: tglPanjang(v.dari),
+  sampai: tglPanjang(v.sampai),
+  hari: v.hari,
+  potong: v.potong,
+  items: v.items.map((i) => ({ nama: i.nama, qty: i.qty, tarif: rp(i.harga), jumlah: rp(i.jumlah) })),
+  ringkasan: [
+    ["Subtotal " + v.hari + " hari", rp(v.subtotal)],
+    ...(v.denda > 0 ? [["Denda " + v.hariTelat + " hari", rp(v.denda)]] : []),
+    ...(v.potongan > 0 ? [["Potongan kerusakan", rp(v.potongan)]] : []),
+  ],
+  total: rp(v.total),
+  setelah: [...(v.dp > 0 ? [["DP dibayar", "- " + rp(v.dp)]] : []), ["Sisa dibayar", rp(v.sisa)]],
+  jaminan: v.jaminan,
+  terbilang: terbilang(v.sisa),
+  lunas: v.lunas,
+  catatan: v.catatan,
+  syarat:
+    "Kostum dikembalikan sesuai tanggal di atas. Keterlambatan dikenakan denda " +
+    rp(v.dendaPerHari) +
+    " per potong per hari. Kerusakan atau kehilangan diganti sesuai nilai kostum. KTP jaminan dikembalikan setelah kostum diterima kembali dengan baik.",
+});
+
+const berkasPDF = async (v) => {
+  const jsPDF = await muatJsPDF();
+  const doc = susunPDF(jsPDF, dataPDF(v));
+  const nama = "Invoice " + v.nomor.replace(/\//g, "-") + " " + v.namaPel + ".pdf";
+  return { blob: doc.output("blob"), nama };
+};
+
+const bagikanPDF = async (v, setToast) => {
+  try {
+    const { blob, nama } = await berkasPDF(v);
+    const berkas = new File([blob], nama, { type: "application/pdf" });
+    if (navigator.canShare && navigator.canShare({ files: [berkas] })) {
+      await navigator.share({ files: [berkas], title: "Invoice " + v.nomor, text: "Invoice sewa kostum dari " + v.toko });
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = nama;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      setToast("PDF tersimpan, lampirkan lewat WhatsApp");
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+    setToast("PDF gagal dibuat: " + (e.message || "coba lagi"));
+  }
+};
+
+const gayaCetakInvoice = `
+  @media print {
+    @page { margin: 12mm; }
+    body { background: #fff !important; }
+    body * { visibility: hidden !important; }
+    #lembar-invoice, #lembar-invoice * { visibility: visible !important; }
+    #lembar-invoice { position: absolute; left: 0; top: 0; width: 100%;
+      border: 0 !important; box-shadow: none !important; }
+    .tanpa-cetak { display: none !important; }
+  }
+`;
+
+function LembarInvoice({ v }) {
+  return (
+    <div id="lembar-invoice" className="overflow-hidden rounded-xl border border-indigo-950/10 bg-white">
+      <div className="h-2.5 w-full" style={kain()} />
+      <div className="p-5 sm:p-7">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="font-serif text-xl leading-tight">{v.toko}</p>
+            <p className="mt-1 text-xs text-indigo-950/55">{v.alamat}</p>
+            <p className="text-xs text-indigo-950/55">{v.telepon}</p>
+          </div>
+          <div className="text-right">
+            <p className="font-serif text-2xl tracking-wide text-amber-700">INVOICE</p>
+            <p className="mt-1 font-mono text-xs">{v.nomor}</p>
+            <p className="mt-2 text-[11px] leading-snug text-indigo-950/55">Dicetak<br />{v.cetakPada}</p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 border-y border-indigo-950/10 py-4 sm:grid-cols-2">
+          <div>
+            <Label>Ditagihkan kepada</Label>
+            <p className="font-medium">{v.namaPel}</p>
+            {v.hp && <p className="text-xs text-indigo-950/55">{v.hp}</p>}
+            {v.alamatPel && <p className="text-xs text-indigo-950/55">{v.alamatPel}</p>}
+          </div>
+          <div className="sm:text-right">
+            <Label>Masa sewa</Label>
+            <p className="text-sm">{tglPanjang(v.dari)}</p>
+            <p className="text-sm">s/d {tglPanjang(v.sampai)}</p>
+            <p className="mt-1 text-xs text-indigo-950/55">{v.hari} hari ditagih · {v.potong} potong</p>
+          </div>
+        </div>
+
+        <table className="mt-5 w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-indigo-950/15 text-[11px] uppercase tracking-wider text-indigo-950/50">
+              <th className="pb-2">Kostum</th>
+              <th className="pb-2 text-center">Qty</th>
+              <th className="pb-2 text-right">Tarif/hari</th>
+              <th className="pb-2 text-right">Jumlah</th>
+            </tr>
+          </thead>
+          <tbody>
+            {v.items.map((i, n) => (
+              <tr key={n} className="border-b border-indigo-950/5">
+                <td className="py-2 pr-2">{i.nama}</td>
+                <td className="py-2 text-center tabular-nums">{i.qty}</td>
+                <td className="py-2 text-right tabular-nums">{rp(i.harga)}</td>
+                <td className="py-2 text-right tabular-nums">{rp(i.jumlah)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-4 flex justify-end">
+          <div className="w-full space-y-1.5 text-sm sm:w-72">
+            <Baris k={"Subtotal " + v.hari + " hari"} v={rp(v.subtotal)} />
+            {v.denda > 0 && <Baris k={"Denda " + v.hariTelat + " hari"} v={rp(v.denda)} />}
+            {v.potongan > 0 && <Baris k="Potongan kerusakan" v={rp(v.potongan)} />}
+            <div className="flex items-center justify-between border-t border-indigo-950/15 pt-2">
+              <span className="text-sm">Total tagihan</span>
+              <span className="tabular-nums">{rp(v.total)}</span>
+            </div>
+            {v.dp > 0 && <Baris k="DP dibayar" v={"− " + rp(v.dp)} />}
+            <div className="flex items-center justify-between border-t border-indigo-950/15 pt-2">
+              <span className="font-serif text-base">Sisa dibayar</span>
+              <span className="font-serif text-xl tabular-nums">{rp(v.sisa)}</span>
+            </div>
+            <Baris k="Jaminan" v={v.jaminan} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 px-4 py-3">
+          <p className="text-xs italic text-indigo-950/70">Terbilang: {terbilang(v.sisa)}</p>
+          <span
+            className={`rounded border-2 px-3 py-1 font-serif text-sm tracking-widest ${
+              v.lunas ? "border-emerald-700 text-emerald-700" : "border-red-800 text-red-800"
+            }`}
+          >
+            {v.lunas ? "LUNAS" : "BELUM LUNAS"}
+          </span>
+        </div>
+
+        {v.catatan && <p className="mt-4 text-xs text-indigo-950/60">Catatan: {v.catatan}</p>}
+
+        <div className="mt-5 border-t border-indigo-950/10 pt-4 text-[11px] leading-relaxed text-indigo-950/55">
+          Kostum dikembalikan sesuai tanggal di atas. Keterlambatan dikenakan denda {rp(v.dendaPerHari)} per potong per hari.
+          Kerusakan atau kehilangan diganti sesuai nilai kostum. KTP jaminan dikembalikan setelah kostum diterima kembali dengan baik.
+        </div>
+
+        <div className="mt-6 flex justify-between gap-6 text-center text-xs">
+          <div className="flex-1">
+            <p className="text-indigo-950/55">Penyewa</p>
+            <div className="mx-auto mt-12 w-4/5 border-t border-indigo-950/25" />
+            <p className="mt-1">{v.namaPel}</p>
+          </div>
+          <div className="flex-1">
+            <p className="text-indigo-950/55">Hormat kami</p>
+            <div className="mx-auto mt-12 w-4/5 border-t border-indigo-950/25" />
+            <p className="mt-1">{v.toko}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Halaman yang dilihat pelanggan saat membuka tautan invoice */
+function InvoicePublik({ v }) {
+  const [sibuk, setSibuk] = useState(false);
+  const [pesan, setPesan] = useState(null);
+
+  const simpan = async () => {
+    setSibuk(true);
+    await bagikanPDF(v, setPesan);
+    setSibuk(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-amber-50 px-4 py-5 text-indigo-950 sm:px-6 sm:py-8">
+      <style>{gayaCetakInvoice}</style>
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div className="tanpa-cetak flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-serif text-xl leading-tight">{v.toko}</p>
+            <p className="text-xs text-indigo-950/50">Invoice {v.nomor}</p>
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="gold" onClick={simpan} disabled={sibuk}>
+              <Download size={15} /> {sibuk ? "Menyiapkan…" : "Simpan PDF"}
+            </Btn>
+            <Btn variant="outline" onClick={() => window.print()}>
+              <Printer size={15} /> Cetak
+            </Btn>
+          </div>
+        </div>
+
+        <LembarInvoice v={v} />
+
+        <p className="tanpa-cetak pb-6 text-center text-xs text-indigo-950/45">
+          Ada pertanyaan? Hubungi {v.toko} di {v.telepon}
+        </p>
+        {pesan && (
+          <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full bg-indigo-950 px-4 py-2 text-sm text-amber-50 shadow-lg">
+            {pesan}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast }) {
   const urut = [...rentals].sort((a, b) => (a.tglSewa < b.tglSewa ? 1 : -1));
   const [id, setId] = useState(urut[0]?.id || "");
@@ -1740,118 +2023,34 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
       </div>
     );
 
-  const hari = hariSewa(r);
-  const total = r.total + (r.denda || 0) + (r.potongan || 0);
-  const sisa = sisaBayar(r);
   const pel = customers.find((c) => c.id === r.customerId);
-  const nomor = "INV/" + r.kode.replace("SW-", "");
-  const lunas = !!r.lunas;
-
-  const pesanWA = [
-    "*" + settings.namaToko + "*",
-    "Invoice " + nomor,
-    cetakPada,
-    "",
-    "Penyewa: " + namaPelanggan(r.customerId),
-    "Sewa: " + tglPanjang(r.tglSewa) + " s/d " + tglPanjang(r.tglKembali) + " (" + hari + " hari)",
-    "",
-    ...r.items.map((i) => "- " + i.nama + " x" + i.qty + " = " + rp(i.harga * i.qty * hari)),
-    "",
-    "Subtotal: " + rp(r.subtotal),
-    r.denda > 0 ? "Denda keterlambatan: " + rp(r.denda) : null,
-    r.potongan > 0 ? "Potongan kerusakan: " + rp(r.potongan) : null,
-    "Total tagihan: " + rp(total),
-    r.dp > 0 ? "DP dibayar: -" + rp(r.dp) : null,
-    "*SISA DIBAYAR: " + rp(sisa) + "*",
-    "Jaminan: " + (r.ktpFoto ? "KTP diterima" : r.ktpCatatan || "-"),
-    "Status: " + (lunas ? "LUNAS" : "BELUM LUNAS"),
-    "",
-    "Terima kasih sudah mempercayakan busana acara Anda kepada kami.",
-    settings.namaToko + " - " + settings.telepon,
-  ].filter((x) => x !== null).join("\n");
-
-  const tautanWA = "https://wa.me/" + noHP(pel?.hp) + "?text=" + encodeURIComponent(pesanWA);
+  const v = bentukInvoice(r, settings, pel, namaPelanggan(r.customerId), cetakPada);
+  const tautan = tautanInvoice(v);
+  const tautanWA = "https://wa.me/" + noHP(pel?.hp) + "?text=" + encodeURIComponent(pesanInvoice(v, tautan));
 
   const kirimPDF = async () => {
     setSibuk(true);
+    await bagikanPDF(v, setToast);
+    setSibuk(false);
+  };
+
+  const salinTautan = async () => {
     try {
-      const jsPDF = await muatJsPDF();
-      const doc = susunPDF(jsPDF, {
-        settings,
-        nomor,
-        cetakPada,
-        namaPel: namaPelanggan(r.customerId),
-        hp: pel?.hp || "",
-        alamat: pel?.alamat || "",
-        dari: tglPanjang(r.tglSewa),
-        sampai: tglPanjang(r.tglKembali),
-        hari,
-        potong: r.items.reduce((a, i) => a + i.qty, 0),
-        items: r.items.map((i) => ({ nama: i.nama, qty: i.qty, tarif: rp(i.harga), jumlah: rp(i.harga * i.qty * hari) })),
-        ringkasan: [
-          ["Subtotal " + hari + " hari", rp(r.subtotal)],
-          ...(r.denda > 0 ? [["Denda " + r.hariTelat + " hari", rp(r.denda)]] : []),
-          ...(r.potongan > 0 ? [["Potongan kerusakan", rp(r.potongan)]] : []),
-        ],
-        total: rp(total),
-        setelah: [
-          ...(r.dp > 0 ? [["DP dibayar", "- " + rp(r.dp)]] : []),
-          ["Sisa dibayar", rp(sisa)],
-        ],
-        jaminan: r.ktpFoto ? "KTP diterima" : r.ktpCatatan || "-",
-        terbilang: terbilang(sisa),
-        lunas,
-        catatan: r.catatan || "",
-        syarat:
-          "Kostum dikembalikan sesuai tanggal di atas. Keterlambatan dikenakan denda " +
-          rp(settings.dendaPerHari) +
-          " per potong per hari. Kerusakan atau kehilangan diganti sesuai nilai kostum. KTP jaminan dikembalikan setelah kostum diterima kembali dengan baik.",
-      });
-
-      const namaBerkas = "Invoice " + nomor.replace(/\//g, "-") + " " + namaPelanggan(r.customerId) + ".pdf";
-      const blob = doc.output("blob");
-      const berkas = new File([blob], namaBerkas, { type: "application/pdf" });
-
-      if (navigator.canShare && navigator.canShare({ files: [berkas] })) {
-        await navigator.share({
-          files: [berkas],
-          title: "Invoice " + nomor,
-          text: "Invoice sewa kostum dari " + settings.namaToko,
-        });
-      } else {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = namaBerkas;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-        setToast("PDF tersimpan, lampirkan lewat WhatsApp");
-      }
+      await navigator.clipboard.writeText(tautan);
+      setToast("Tautan invoice disalin");
     } catch (e) {
-      if (e && e.name === "AbortError") return;
-      setToast("PDF gagal dibuat: " + (e.message || "coba lagi"));
-    } finally {
-      setSibuk(false);
+      setToast("Gagal menyalin, pakai tombol WhatsApp saja");
     }
   };
 
   const toggleLunas = () => {
     set({ rentals: rentals.map((x) => (x.id === r.id ? { ...x, lunas: !x.lunas } : x)) });
-    setToast(lunas ? "Ditandai belum lunas" : "Ditandai lunas");
+    setToast(v.lunas ? "Ditandai belum lunas" : "Ditandai lunas");
   };
 
   return (
     <div className="space-y-5">
-      <style>{`
-        @media print {
-          @page { margin: 12mm; }
-          body { background: #fff !important; }
-          body * { visibility: hidden !important; }
-          #lembar-invoice, #lembar-invoice * { visibility: visible !important; }
-          #lembar-invoice { position: absolute; left: 0; top: 0; width: 100%;
-            border: 0 !important; box-shadow: none !important; }
-          .tanpa-cetak { display: none !important; }
-        }
-      `}</style>
+      <style>{gayaCetakInvoice}</style>
 
       <div className="tanpa-cetak">
         <Header judul="Invoice" sub="Tagihan resmi untuk dikirim ke penyewa" />
@@ -1861,138 +2060,38 @@ function Invoice({ rentals, customers, settings, set, namaPelanggan, setToast })
         <select className={inputCls + " min-w-[200px] flex-1"} value={id} onChange={(e) => setId(e.target.value)}>
           {urut.map((x) => (
             <option key={x.id} value={x.id}>
-              {x.kode} · {namaPelanggan(x.customerId)} · {rp(x.total + (x.denda || 0))}
+              {x.kode} · {namaPelanggan(x.customerId)} · {rp(sisaBayar(x))}
             </option>
           ))}
         </select>
         <Btn variant="outline" onClick={toggleLunas}>
-          <Check size={15} /> {lunas ? "Batalkan lunas" : "Tandai lunas"}
+          <Check size={15} /> {v.lunas ? "Batalkan lunas" : "Tandai lunas"}
         </Btn>
-        <Btn variant="gold" onClick={kirimPDF} disabled={sibuk}>
-          <FileText size={15} /> {sibuk ? "Menyiapkan PDF…" : "Kirim sebagai PDF"}
-        </Btn>
+      </div>
+
+      <div className="tanpa-cetak flex flex-wrap gap-2">
         <a
           href={tautanWA}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-950/20 bg-white px-3.5 py-2 text-sm font-semibold text-indigo-950 hover:bg-indigo-950/5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-3.5 py-2 text-sm font-semibold text-indigo-950 hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
         >
-          <MessageCircle size={15} /> Kirim rincian teks
+          <MessageCircle size={15} /> Kirim ke WhatsApp {pel?.hp ? "" : "(pilih kontak)"}
         </a>
-        <Btn variant="ghost" onClick={() => window.print()}>
-          <Printer size={15} /> Cetak
+        <Btn variant="outline" onClick={kirimPDF} disabled={sibuk}>
+          <FileText size={15} /> {sibuk ? "Menyiapkan…" : "Kirim berkas PDF"}
         </Btn>
+        <Btn variant="ghost" onClick={salinTautan}><Upload size={15} /> Salin tautan</Btn>
+        <Btn variant="ghost" onClick={() => window.print()}><Printer size={15} /> Cetak</Btn>
       </div>
 
       <p className="tanpa-cetak text-xs text-indigo-950/50">
-        <b>Kirim sebagai PDF</b> membuat berkas invoice lalu membuka pilihan aplikasi — pilih WhatsApp dan kontaknya. Kalau HP tidak mendukung berbagi berkas, PDF akan terunduh dan bisa dilampirkan manual.
+        <b>Kirim ke WhatsApp</b> langsung membuka chat {pel?.hp ? pel.hp : "pelanggan"} berisi rincian tagihan dan tautan invoice —
+        pelanggan tinggal ketuk untuk melihat dan menyimpan PDF-nya sendiri.
+        <b> Kirim berkas PDF</b> memakai lembar berbagi, kalau kamu ingin melampirkan berkasnya sendiri.
       </p>
 
-      {/* Lembar yang dicetak */}
-      <div id="lembar-invoice" className="overflow-hidden rounded-xl border border-indigo-950/10 bg-white">
-        <div className="h-2.5 w-full" style={kain()} />
-        <div className="p-5 sm:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="font-serif text-xl leading-tight">{settings.namaToko}</p>
-              <p className="mt-1 text-xs text-indigo-950/55">{settings.alamat}</p>
-              <p className="text-xs text-indigo-950/55">{settings.telepon}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-serif text-2xl tracking-wide text-amber-700">INVOICE</p>
-              <p className="mt-1 font-mono text-xs">{nomor}</p>
-              <p className="mt-2 text-[11px] leading-snug text-indigo-950/55">
-                Dicetak<br />{cetakPada}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-4 border-y border-indigo-950/10 py-4 sm:grid-cols-2">
-            <div>
-              <Label>Ditagihkan kepada</Label>
-              <p className="font-medium">{namaPelanggan(r.customerId)}</p>
-              {pel?.hp && <p className="text-xs text-indigo-950/55">{pel.hp}</p>}
-              {pel?.alamat && <p className="text-xs text-indigo-950/55">{pel.alamat}</p>}
-            </div>
-            <div className="sm:text-right">
-              <Label>Masa sewa</Label>
-              <p className="text-sm">{tglPanjang(r.tglSewa)}</p>
-              <p className="text-sm">s/d {tglPanjang(r.tglKembali)}</p>
-              <p className="mt-1 text-xs text-indigo-950/55">{hari} hari ditagih · {r.items.reduce((a, i) => a + i.qty, 0)} potong</p>
-            </div>
-          </div>
-
-          <table className="mt-5 w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-indigo-950/15 text-[11px] uppercase tracking-wider text-indigo-950/50">
-                <th className="pb-2">Kostum</th>
-                <th className="pb-2 text-center">Qty</th>
-                <th className="pb-2 text-right">Tarif/hari</th>
-                <th className="pb-2 text-right">Jumlah</th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.items.map((i, n) => (
-                <tr key={n} className="border-b border-indigo-950/5">
-                  <td className="py-2 pr-2">{i.nama}</td>
-                  <td className="py-2 text-center tabular-nums">{i.qty}</td>
-                  <td className="py-2 text-right tabular-nums">{rp(i.harga)}</td>
-                  <td className="py-2 text-right tabular-nums">{rp(i.harga * i.qty * hari)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="mt-4 flex justify-end">
-            <div className="w-full space-y-1.5 text-sm sm:w-72">
-              <Baris k={"Subtotal " + hari + " hari"} v={rp(r.subtotal)} />
-              {r.denda > 0 && <Baris k={"Denda " + r.hariTelat + " hari"} v={rp(r.denda)} />}
-              {r.potongan > 0 && <Baris k="Potongan kerusakan" v={rp(r.potongan)} />}
-              <div className="flex items-center justify-between border-t border-indigo-950/15 pt-2">
-                <span className="text-sm">Total tagihan</span>
-                <span className="tabular-nums">{rp(total)}</span>
-              </div>
-              {r.dp > 0 && <Baris k="DP dibayar" v={"− " + rp(r.dp)} />}
-              <div className="flex items-center justify-between border-t border-indigo-950/15 pt-2">
-                <span className="font-serif text-base">Sisa dibayar</span>
-                <span className="font-serif text-xl tabular-nums">{rp(sisa)}</span>
-              </div>
-              <Baris k="Jaminan" v={r.ktpFoto ? "KTP diterima" : r.ktpCatatan || "—"} />
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 px-4 py-3">
-            <p className="text-xs italic text-indigo-950/70">Terbilang: {terbilang(sisa)}</p>
-            <span
-              className={`rounded border-2 px-3 py-1 font-serif text-sm tracking-widest ${
-                lunas ? "border-emerald-700 text-emerald-700" : "border-red-800 text-red-800"
-              }`}
-            >
-              {lunas ? "LUNAS" : "BELUM LUNAS"}
-            </span>
-          </div>
-
-          {r.catatan && <p className="mt-4 text-xs text-indigo-950/60">Catatan: {r.catatan}</p>}
-
-          <div className="mt-5 border-t border-indigo-950/10 pt-4 text-[11px] leading-relaxed text-indigo-950/55">
-            Kostum dikembalikan sesuai tanggal di atas. Keterlambatan dikenakan denda {rp(settings.dendaPerHari)} per potong per hari.
-            Kerusakan atau kehilangan diganti sesuai nilai kostum. KTP jaminan dikembalikan setelah kostum diterima kembali dengan baik.
-          </div>
-
-          <div className="mt-6 flex justify-between gap-6 text-center text-xs">
-            <div className="flex-1">
-              <p className="text-indigo-950/55">Penyewa</p>
-              <div className="mx-auto mt-12 w-4/5 border-t border-indigo-950/25" />
-              <p className="mt-1">{namaPelanggan(r.customerId)}</p>
-            </div>
-            <div className="flex-1">
-              <p className="text-indigo-950/55">Hormat kami</p>
-              <div className="mx-auto mt-12 w-4/5 border-t border-indigo-950/25" />
-              <p className="mt-1">{settings.namaToko}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <LembarInvoice v={v} />
     </div>
   );
 }
@@ -2367,7 +2466,7 @@ function Laporan({ rentals, costumes, customers, settings, namaPelanggan, status
     try {
       const jsPDF = await muatJsPDF();
       const doc = susunLaporanPDF(jsPDF, {
-        settings,
+        settings: { ...settings, telepon: teleponToko(settings) },
         periode: labelPeriode,
         cetakPada,
         ringkasan,
@@ -2458,7 +2557,7 @@ function Laporan({ rentals, costumes, customers, settings, namaPelanggan, status
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="font-serif text-xl leading-tight">{settings.namaToko}</p>
-              <p className="mt-1 text-xs text-indigo-950/55">{settings.alamat} · {settings.telepon}</p>
+              <p className="mt-1 text-xs text-indigo-950/55">{settings.alamat} · {teleponToko(settings)}</p>
             </div>
             <div className="text-right">
               <p className="font-serif text-lg tracking-wide text-amber-700">LAPORAN PENYEWAAN</p>
@@ -2791,7 +2890,11 @@ function Pengaturan({ settings, set, setToast, setTab }) {
           <div className="sm:col-span-2">
             <Field label="Nama usaha"><input type="text" autoComplete="off" className={inputCls} value={f.namaToko} onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, namaToko: v })); }} /></Field>
           </div>
-          <Field label="Telepon"><input type="tel" inputMode="tel" autoComplete="off" className={inputCls} value={f.telepon} onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, telepon: v })); }} /></Field>
+          <Field label="Telepon utama"><input type="tel" inputMode="tel" autoComplete="off" className={inputCls} value={f.telepon} onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, telepon: v })); }} /></Field>
+          <Field label="Telepon kedua (boleh dikosongkan)">
+            <input type="tel" inputMode="tel" autoComplete="off" className={inputCls} value={f.telepon2 || ""}
+              placeholder="0813-..." onChange={(e) => { const v = e.target.value; setF((x) => ({ ...x, telepon2: v })); }} />
+          </Field>
           <Field label="Denda per potong per hari">
             <InputAngka nilai={f.dendaPerHari} onNilai={(v) => setF((x) => ({ ...x, dendaPerHari: v }))} />
           </Field>
@@ -2844,6 +2947,20 @@ function Pengaturan({ settings, set, setToast, setTab }) {
 
     </div>
   );
+}
+
+function App() {
+  const tamu = (() => {
+    const h = typeof window !== "undefined" ? window.location.hash || "" : "";
+    if (!h.startsWith("#inv=")) return null;
+    try {
+      return dariKode(h.slice(5));
+    } catch (e) {
+      return null;
+    }
+  })();
+
+  return tamu ? <InvoicePublik v={tamu} /> : <Aplikasi />;
 }
 
 
